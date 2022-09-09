@@ -16,6 +16,8 @@ struct ChirpParams {
     bool reset;
 };
 
+void simulateOnce(const ChirpParams& p, float* spect, float& range, float& vel, size_t& sp_size, float gt_r, float gt_v, float cutoff);
+
 template <typename T>
 class ChirpGenerator {
 using complex_t = std::complex<T>;

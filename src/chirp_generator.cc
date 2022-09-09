@@ -110,14 +110,16 @@ ChirpGenerator<T>::complex_t ChirpGenerator<T>::freqButterworth4(int k, T cutoff
 }
 
 // Rust API
-extern  "C" {
+// extern  "C" {
 
 // TODO: spect是Rust传入的Vec产生的ptr，需要确定其长度。具体方法是：根据采样率以及时间计算点数，使用此点数补全至2幂次，后除2并+1
-void simulateOnce(const ChirpParams& p, float* spect, float& range, float& vel, float gt_r, float gt_v, float cutoff) {
+void simulateOnce(const ChirpParams& p, float* spect, float& range, float& vel, size_t& sp_size, float gt_r, float gt_v, float cutoff) {
     static ChirpGenerator<float> cg(p);
     std::vector<float> spectrum;
     float f_pos = 0., f_neg = 0.;
     cg.sendOneFrame(spectrum, f_pos, f_neg, gt_r, gt_v, cutoff);
     cg.solve(f_pos, f_neg, range, vel);
-}
+    sp_size = spectrum.size();
+    memcpy(spect, spectrum.data(), sp_size * sizeof(float));
+// }
 }
