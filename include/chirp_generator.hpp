@@ -5,23 +5,60 @@
 #include <random>
 #include <Eigen/Dense>
 
+struct ChirpParams {
+    float base_f;
+    float edge_len;
+    float band_w;
+    float sp_int;
+    float tof_std;
+    float doppler_std;
+    float sample_std;
+    bool reset;
+};
+
 template <typename T>
 class ChirpGenerator {
 using complex_t = std::complex<T>;
 public:
-    ChirpGenerator(T base_f, T edge_len, T band_w, T sp_int, T tof_std, T doppler_std, T sample_std):
-        base_freq(base_f), edge_length(edge_len), band_width(band_w), 
-        sample_int(sp_int), tof_noise_std(tof_std), doppler_noise_std(doppler_std), sample_noise_std(sample_std)
+    ChirpGenerator(const ChirpParams& p)
     {
+        reset(p);
         total_len = static_cast<size_t>(edge_length / sample_int) + 1;
         pos_chirp.resize(total_len, 0.);
         neg_chirp.resize(total_len, 0.);
-        // TODO: 对于发射信号而言，是否在构造时进行计算比较好？构造时计算正弦，在速度为0的时候也可以直接使用此正弦
-        // 只在有速度（多普勒效应）时重新进行计算
+        #pragma omp parallel sections 
+        {
+            #pragma omp section 
+            {
+                generateSignalPoints(pos_chirp, 1.0);
+            }
+            #pragma omp section 
+            {
+                generateSignalPoints(neg_chirp, -1.0);
+            }
+        }
     }
 public:
-    void sendOneFrame(T gt_depth);      // simulation
+    void reset(const ChirpParams& p) {
+        base_freq = p.base_f;
+        edge_length = p.edge_len;
+        band_width = p.band_w; 
+        sample_int = p.sp_int; 
+        tof_noise_std = p.tof_std;
+        doppler_noise_std = p.doppler_std; 
+        sample_noise_std = p.sample_std;
+    }
+
+    void sendOneFrame(std::vector<T>& spectrum, T& f_pos, T& f_neg, T gt_depth, T gt_vel, T cut_off);      // simulation
+
+    void solve(T beat_pos, T beat_neg, T& range, T& speed) const {
+        range = c_vel * edge_length / (8. * band_width) * (beat_pos + beat_neg);
+        speed = wave_length / 4. * (beat_neg - beat_pos);
+    }
 private:
+    // default cut off frequency is 1MHz
+    void processOneEdge(std::vector<T>& out_spectrum, T& beat_f, T delay, T sign, T doppler_mv, T cut_off = 1e7) const;
+
     T set_delay_time(T d_time) {        // should be called every evaluation
         // non-fixed random seed
         static std::default_random_engine engine(std::chrono::system_clock::now().time_since_epoch().count());
@@ -30,19 +67,20 @@ private:
     }
 
     // 计算signal points，如果doppler_k大于0.0 则需要改变频率重新采样
-    void generateSignalPoints(std::vector<T>& output, T doppler_mv = 0.0, bool perturb = false) const;
+    void generateSignalPoints(std::vector<T>& output, T sign, T doppler_mv = 0.0, bool perturb = false) const;
 
     // (1) tx，rx信号相乘（调制）（2）进行低通滤波（3）FFT得到频谱（4）频谱进行有意义的变化（FFT变为频率）
     // 输入 tx 信号，rx 信号，输出频谱(spect)以及拍频（beat_f）
     void modulateThenTransform(const std::vector<T>& tx, const std::vector<T>& rx, std::vector<T>& spect, T& beat_f, T cutoff_f) const;
 
-    void solve(T beat_pos, T beat_neg, T& range, T& speed) const {
-        range = c_vel * edge_length / (8. * band_width) * (beat_pos + beat_neg);
-        speed = wave_length / 4. * (beat_neg - beat_pos);
+    static void signalCropping(const std::vector<T>& input, std::vector<T>& output, size_t number) {
+        output.assign(input.begin() + number, input.end());
     }
 
-    // 在进行modulation时，由于Rx信号滞后于Tx信号，Tx信号的部分已经丢失，不参与计算，故Rx，Tx都需要剪切
-    static void signalCropping(const std::vector<T>& input, std::vector<T>& output, size_t number, bool front = true);
+    static void signalCropping(std::vector<T>& inout, size_t number) {
+        size_t new_size = inout.size() - number;
+        inout.resize(new_size);
+    }
 
     static void zeroPadding(std::vector<T>& inout) {
         size_t len = inout.size();
@@ -69,3 +107,5 @@ private:
     std::vector<T> pos_chirp;
     std::vector<T> neg_chirp;
 };
+
+// Rust API
