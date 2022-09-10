@@ -22,6 +22,6 @@ extern {
     pub fn laserRangeFinder(pose: &Vec3_cpp, pts: *const Vec2_cpp, ids: *const libc::c_char, max_num: libc::c_int, min_range: &mut libc::c_float);
     
     // void simulateOnce(const ChirpParams& p, float* spect, float& range, float& vel, int& sp_size, float gt_r, float gt_v, float cutoff) {
-    pub fn simulateOnce(p: &Chirp_param, spect: *mut libc::c_float, range: &mut libc::c_float,
-        vel: &mut libc::c_float, sp_size: &mut libc::c_int, gt_r: libc::c_float, gt_v: libc::c_float, cutoff: libc::c_float);
+    pub fn simulateOnce(p: &mut Chirp_param, spect: *mut libc::c_float, 
+        range: &mut libc::c_float, vel: &mut libc::c_float, gt_r: libc::c_float, gt_v: libc::c_float);
 }

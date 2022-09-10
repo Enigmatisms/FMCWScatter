@@ -4,11 +4,13 @@ use nannou_egui::{self, egui};
 use super::model::Model;
 use super::toggle::toggle;
 use super::plot::take_snapshot;
-use super::map_io::read_config_rdf;
+use super::map_io::{read_config_rdf, load_map_file};
 
 pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
     let Model {
         ref mut map_points,
+        ref mut chirp,
+        ref mut fmcw_p,
         ref mut wctrl,
         ref mut plot_config,
         ref mut wtrans,
@@ -83,10 +85,9 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
             // this implementation is so fucking ugly
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
                 if ui.button("Load map file").clicked() {
-                    let raw_points: Vec<Vec<Point2>> = Vec::new();
-                    // let mut total_pt_num = 0;
-                    // TODO: initialize cpp end
-                    // initialize_cpp_end(&raw_points, *ray_num, &mut total_pt_num, true);      // re-intialize CUDA (ray tracer)
+                    let mut raw_points: Vec<Vec<Point2>> = Vec::new();
+                    load_map_file(&mut raw_points);
+                    Model::initialize_cpp_end(&raw_points, &mut chirp.flattened_pts, &mut chirp.nexts);      // re-intialize CUDA (ray tracer)
                     *map_points = raw_points;           // replacing map points
                     *initialized = false;               // should reset starting point
                 }

@@ -94,14 +94,17 @@ typename ChirpGenerator<T>::complex_t ChirpGenerator<T>::freqButterworth4(int k,
 
 template class ChirpGenerator<float>;
 extern  "C" {
-void simulateOnce(const ChirpParams& p, float* spect, float& range, float& vel, int& sp_size, float gt_r, float gt_v, float cutoff) {
+void simulateOnce(ChirpParams& p, float* spect, float& range, float& vel, float gt_r, float gt_v) {
     static ChirpGenerator<float> cg(p);
     std::vector<float> spectrum;
     float f_pos = 0., f_neg = 0.;
-    cg.sendOneFrame(spectrum, f_pos, f_neg, gt_r, gt_v, cutoff);
+    if (p.reset) {
+        cg.reset(p);
+        p.reset = false;
+    }
+    cg.sendOneFrame(spectrum, f_pos, f_neg, gt_r, gt_v, p.cut_off);
     cg.solve(f_pos, f_neg, range, vel);
-    sp_size = static_cast<int>(spectrum.size());
+    size_t sp_size = static_cast<int>(spectrum.size());
     memcpy(spect, spectrum.data(), sp_size * sizeof(float));
-// }
 }
 }

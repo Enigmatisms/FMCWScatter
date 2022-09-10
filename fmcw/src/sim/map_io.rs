@@ -22,13 +22,6 @@ pub struct ScreenConfig {
     pub height: u32
 }
 
-#[derive(Deserialize, Serialize, Clone)]
-pub struct Config {
-    pub robot: ScannerConfig,
-    pub screen: ScreenConfig,
-    pub map_path: String
-}
-
 #[repr(C)]
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Chirp_param {
@@ -40,6 +33,14 @@ pub struct Chirp_param {
     pub doppler_std: libc::c_float,
     pub sample_std: libc::c_float,
     pub reset: bool
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct Config {
+    pub robot: ScannerConfig,
+    pub screen: ScreenConfig,
+    pub fmcw_p: Chirp_param,
+    pub map_path: String
 }
 
 /// TODO: offset 600 and 450 needs to be removed

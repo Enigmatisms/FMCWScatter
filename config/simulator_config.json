@@ -12,5 +12,16 @@
         "width":1200,
         "height":900
     },
+    "fmcw_p":
+    {
+        "base_f": 300e6,
+        "edge_len": 2e6,
+        "band_w": 600e6,
+        "sp_int": 5e-10,
+        "tof_std": 2e-10,
+        "doppler_std": 1e-4,
+        "sample_std": 0.02,
+        "reset": false
+    },
     "map_path":"../maps/standard0.txt"
 }

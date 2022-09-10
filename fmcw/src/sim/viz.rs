@@ -9,8 +9,18 @@ use super::plot;
 use super::utils;
 use super::map_io;
 
+fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event::WindowEvent) {
+    model.egui.handle_raw_event(event);
+}
+
+#[inline(always)]
+fn zero_padding(vec: &mut Vec<libc::c_float>, sp_int: f32, sp_time: f32) {
+    let raw_num = (sp_time / sp_int).log2().ceil() as usize;
+    vec.resize(raw_num, 0.);
+}
+
 pub fn model(app: &App) -> Model {
-    let config: map_io::Config = map_io::read_config("./config/simulator_config.json");
+    let config: map_io::Config = map_io::read_config("../config/simulator_config.json");
 
     let window_id = app
         .new_window()
@@ -30,11 +40,7 @@ pub fn model(app: &App) -> Model {
     app.set_exit_on_escape(false);
     let meshes: map_io::Meshes = map_io::parse_map_file(config.map_path.as_str()).unwrap();
 
-    Model::new(app, window_id, &config, meshes)
-}
-
-fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event::WindowEvent) {
-    model.egui.handle_raw_event(event);
+    Model::new(app, window_id, config, meshes)
 }
 
 pub fn update(_app: &App, _model: &mut Model, _update: Update) {
@@ -58,12 +64,15 @@ pub fn update(_app: &App, _model: &mut Model, _update: Update) {
         _model.pose.z += _model.pid.x * diff + _model.pid.y * LOCAL_INT + _model.pid.z * kd_val;
         _model.pose.z = utils::good_angle(_model.pose.z);
         let pose = fmcw_helper::Vec3_cpp {x:_model.pose.x, y:_model.pose.y, z:_model.pose.z};
-        // fmcw_helper::rayTraceRender(&_model.lidar_param, &pose, _model.ray_num as i32, _model.lidar_noise, _model.ranges.as_mut_ptr());
-        // TODO: fmcw_helper此处调用两个函数，range finder以及chirp gen
         fmcw_helper::laserRangeFinder(
             &pose, _model.chirp.flattened_pts.as_ptr(), _model.chirp.nexts.as_ptr(), 
             _model.chirp.nexts.len() as i32, &mut _model.chirp.gt_r
         );
+        if _model.fmcw_p.reset == true {
+            zero_padding(&mut _model.chirp.spect, _model.fmcw_p.sp_int, _model.fmcw_p.edge_len);
+        }
+        fmcw_helper::simulateOnce(&mut _model.fmcw_p, _model.chirp.spect.as_mut_ptr(), 
+        &mut _model.chirp.pred_r, &mut _model.chirp.pred_v, _model.chirp.gt_r, _model.velo.x);
     }
 }
 

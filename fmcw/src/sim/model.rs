@@ -6,12 +6,13 @@ use super::map_io;
 use super::structs::*;
 use super::color::EditorColor;
 
-const BOUNDARIES: [(f32, f32); 4] = [(-1170.0, -870.), (1170., -870.), (1170., 870.), (-1170., 870.)];
+const BOUNDARIES: [(f32, f32); 4] = [(-600.0, -450.), (600., -450.), (600., 450.), (-600., 450.)];
 const BOUNDARY_IDS: [i8; 4] = [3, 0, 0, -3];
 
 pub struct Model {
     pub map_points: Vec<Vec<Point2>>,
     pub chirp: ChirpRelated,
+    pub fmcw_p: map_io::Chirp_param,
     pub plot_config: PlotConfig,
     pub wctrl: WindowCtrl,
     pub wtrans: WindowTransform,
@@ -32,7 +33,7 @@ pub struct Model {
 
 impl Model {
     pub fn new(
-        app: &App, window_id:  WindowId, config: &map_io::Config, meshes: map_io::Meshes) 
+        app: &App, window_id:  WindowId, config: map_io::Config, meshes: map_io::Meshes) 
     -> Model {
         let mut flat_pts: Vec<fmcw_helper::Vec2_cpp> = Vec::new();
         let mut next_ids: Vec<i8> = Vec::new();
@@ -40,6 +41,7 @@ impl Model {
         Model {
             map_points: meshes, 
             chirp: ChirpRelated::new(flat_pts, next_ids),
+            fmcw_p: config.fmcw_p,
             plot_config: PlotConfig::new(),
             wctrl: WindowCtrl::new(window_id, config.screen.width as f32, config.screen.height as f32, exit),
             wtrans: WindowTransform::new(),
