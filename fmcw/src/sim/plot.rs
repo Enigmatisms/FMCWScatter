@@ -16,14 +16,6 @@ pub fn window_transform(draw: Draw, wint: &WindowTransform) -> Draw {
         .scale_y(wint.scale)
 }
 
-pub fn plot_trajectory(draw: &Draw, trajectory: &Vec<Point2>, rgb: &(f32, f32, f32), alpha: f32) {
-    let pt2draw = (0..trajectory.len()).map(|i| {trajectory[i]});
-    draw.polyline()
-        .weight(1.5)
-        .points(pt2draw)
-        .rgba(rgb.0, rgb.1, rgb.2, alpha);
-}
-
 pub fn draw_grid(draw: &Draw, win: &Rect, step: f32, weight: f32, color: &(f32, f32, f32), alpha: f32) {
     let step_by = || (0..).map(|i| i as f32 * step);
     let r_iter = step_by().take_while(|&f| f < win.right());
