@@ -89,9 +89,9 @@ template <typename T>
 typename ChirpGenerator<T>::complex_t ChirpGenerator<T>::freqButterworth4(int k, T cutoff_f, T base_f) {
     const complex_t s(0., base_f * static_cast<T>(k) / cutoff_f);
     const complex_t s2 = s * s;   
-    return 1. / (s2 + 0.765367 * s + 1.) / (s2 + 1.847759 * s + 1.);
+    return 1.f / (s2 + 0.765367f * s + 1.f) / (s2 + 1.847759f * s + 1.f);
 }
 
-template class ChirpGenerator<double>;
+template class ChirpGenerator<float>;
 // Rust API
 // extern  "C" {

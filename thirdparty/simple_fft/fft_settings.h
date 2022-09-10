@@ -16,7 +16,7 @@
 
 #include <complex>
 
-typedef double real_type;
+typedef float real_type;
 typedef std::complex<real_type> complex_type;
 
 //#ifndef __USE_SQUARE_BRACKETS_FOR_ELEMENT_ACCESS_OPERATOR
