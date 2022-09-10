@@ -2,9 +2,9 @@ use nannou::prelude::*;
 use nannou_egui::{self, egui};
 
 use super::model::Model;
-use super::viz::initialize_cpp_end;
+use super::toggle::toggle;
 use super::plot::take_snapshot;
-use super::map_io::{load_map_file, read_config_rdf};
+use super::map_io::read_config_rdf;
 
 pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
     let Model {
@@ -14,12 +14,9 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
         ref mut wtrans,
         ref mut egui,
         ref mut inside_gui,
-        ref mut key_stat,
         ref mut color,
         ref mut velo_max,
         ref mut pid,
-
-        ref mut grid_specs,
         ref mut initialized,
         ..
     } = model;
@@ -49,11 +46,6 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
 
             ui.label("Grid alpha");
             ui.add(egui::Slider::new(&mut plot_config.grid_alpha, 0.001..=0.1));
-            ui.end_row();
-
-            
-            ui.label("Trajectory alpha");
-            ui.add(egui::Slider::new(&mut trajectory.alpha, 0.001..=1.0));
             ui.end_row();
 
             ui.label("Canvas zoom scale");
@@ -91,11 +83,10 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
             // this implementation is so fucking ugly
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
                 if ui.button("Load map file").clicked() {
-                    let mut raw_points: Vec<Vec<Point2>> = Vec::new();
-                    let mut total_pt_num = 0;
-                    /// TODO: initialize cpp end
+                    let raw_points: Vec<Vec<Point2>> = Vec::new();
+                    // let mut total_pt_num = 0;
+                    // TODO: initialize cpp end
                     // initialize_cpp_end(&raw_points, *ray_num, &mut total_pt_num, true);      // re-intialize CUDA (ray tracer)
-                    Model::recompute_grid(grid_specs, occ_grid, &raw_points, *grid_size);           // re-compute occpuancy grid
                     *map_points = raw_points;           // replacing map points
                     *initialized = false;               // should reset starting point
                 }
@@ -104,9 +95,7 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
                 if ui.button("Load config").clicked() {
                     if let Some(new_config) = read_config_rdf() {
-                        Model::reload_config(&new_config, &mut wctrl.win_w, &mut wctrl.win_h,
-                            pid, &mut color.lidar_color, velo_max, lidar_noise
-                        );
+                        Model::reload_config(&new_config, &mut wctrl.win_w, &mut wctrl.win_h, pid, velo_max);
                     }
                 }
             });

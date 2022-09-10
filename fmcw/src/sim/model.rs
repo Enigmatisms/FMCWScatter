@@ -1,18 +1,17 @@
 use nannou::prelude::*;
 use nannou_egui::Egui;
-
-use array2d::Array2D;
 use super::fmcw_helper;
 
 use super::map_io;
 use super::structs::*;
 use super::color::EditorColor;
-use std::f32::consts::PI;
-use std::path::PathBuf;
+
+const BOUNDARIES: [(f32, f32); 4] = [(-1170.0, -870.), (1170., -870.), (1170., 870.), (-1170., 870.)];
+const BOUNDARY_IDS: [i8; 4] = [3, 0, 0, -3];
 
 pub struct Model {
     pub map_points: Vec<Vec<Point2>>,
-    pub grid_specs: (f32, f32, f32, f32),
+    pub chirp: ChirpRelated,
     pub plot_config: PlotConfig,
     pub wctrl: WindowCtrl,
     pub wtrans: WindowTransform,
@@ -35,9 +34,12 @@ impl Model {
     pub fn new(
         app: &App, window_id:  WindowId, config: &map_io::Config, meshes: map_io::Meshes) 
     -> Model {
+        let mut flat_pts: Vec<fmcw_helper::Vec2_cpp> = Vec::new();
+        let mut next_ids: Vec<i8> = Vec::new();
+        Model::initialize_cpp_end(&meshes, &mut flat_pts, &mut next_ids);
         Model {
             map_points: meshes, 
-            grid_specs: grid_specs,
+            chirp: ChirpRelated::new(flat_pts, next_ids),
             plot_config: PlotConfig::new(),
             wctrl: WindowCtrl::new(window_id, config.screen.width as f32, config.screen.height as f32, exit),
             wtrans: WindowTransform::new(),
@@ -55,9 +57,28 @@ impl Model {
         }
     }
 
+    pub fn initialize_cpp_end(new_pts: &map_io::Meshes, pts: &mut Vec<fmcw_helper::Vec2_cpp>, nexts: &mut Vec<i8>) {
+        for mesh in new_pts.iter() {
+            for pt in mesh.iter() {
+                pts.push(fmcw_helper::Vec2_cpp{x: pt.x, y: pt.y});
+            }
+            let length = mesh.len();
+            let offset: i8 = (length as i8) - 1;
+            let mut ids: Vec<i8> = vec![0; length];
+            ids[0] = offset;
+            ids[length - 1] = -offset;
+            nexts.extend(ids.into_iter());
+        }
+        for i in 0..4 {                                                 // add boundaries
+            let (x, y) = BOUNDARIES[i];
+            pts.push(fmcw_helper::Vec2_cpp{x: x, y: y});
+            nexts.push(BOUNDARY_IDS[i]);
+        }
+    } 
+
     pub fn reload_config(
-        config: &map_io::Config, win_w: &mut f32, win_h: &mut f32, pid: &mut Point3,
-        lidar_color: &mut [f32; 4], velo_max: &mut Point2, lidar_noise: &mut f32
+        config: &map_io::Config, win_w: &mut f32, 
+        win_h: &mut f32, pid: &mut Point3, velo_max: &mut Point2
     ) {
         pid.x = config.robot.pid_kp;
         pid.y = config.robot.pid_ki;

@@ -1,0 +1,16 @@
+{
+    "robot":
+    {
+        "t_vel":2.0,
+        "r_vel":1.0,
+        "pid_kp":0.2,
+        "pid_ki":0.0005,
+        "pid_kd":0.01
+    },
+    "screen":
+    {
+        "width":1200,
+        "height":900
+    },
+    "map_path":"../maps/standard0.txt"
+}

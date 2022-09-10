@@ -1,6 +1,6 @@
 #include <algorithm>
-#include "simple_fft/fft.h"
-#include "chirp_generator.hpp"
+#include "../thirdparty/simple_fft/fft.hpp"
+#include "../include/chirp_generator.hpp"
 
 template <typename T>
 void ChirpGenerator<T>::sendOneFrame(std::vector<T>& spectrum, T& f_pos, T& f_neg, T gt_depth, T gt_vel, T cut_off) {

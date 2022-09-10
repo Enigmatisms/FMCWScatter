@@ -1,10 +1,8 @@
 use std::fs;
 use serde_derive::{Deserialize, Serialize};
 use nannou::prelude::*;
-use std::io::Write;
 use std::io::{prelude::*, BufReader};
-use std::f32::consts::PI;
-use super::fmcw_helper::{Vec2_cpp, Vec3_cpp, self};
+use super::fmcw_helper::{Vec2_cpp, self};
 
 pub type Mesh = Vec<Point2>;
 pub type Meshes = Vec<Mesh>;
@@ -102,12 +100,7 @@ pub fn read_config_rdf() -> Option<Config> {
 pub fn read_config<T>(file_path: T) -> Config where T: AsRef<std::path::Path> {
     let file: fs::File = fs::File::open(file_path).ok().unwrap();
     let reader = BufReader::new(file);
-    let mut config: Config = serde_json::from_reader(reader).ok().unwrap();
-    config.lidar.amin = config.lidar.amin * PI / 180.;
-    config.lidar.amax = config.lidar.amax * PI / 180.;
-    config.lidar.ainc = config.lidar.ainc * PI / 360.;
-    config.lidar.amin += config.lidar.ainc / 2.0;
-    config.lidar.amax -= config.lidar.ainc / 2.0;
+    let config: Config = serde_json::from_reader(reader).ok().unwrap();
     config
 }
 
@@ -142,25 +135,4 @@ fn read_lines<T>(filepath: T) -> Option<Vec<String>> where T: AsRef<std::path::P
     }
     println!("Unable to open file.");
     return None;
-}
-
-fn get_file_to_save(file_name: &mut String, default: &str) -> Option<std::fs::File> {
-    if file_name.len() == 0 {
-        let path = rfd::FileDialog::new()
-            .set_file_name(default)
-            .set_directory(".")
-            .save_file();
-        if let Some(file) = path {
-            *file_name = String::from(file.as_os_str().to_str().unwrap());
-        } else {
-            *file_name = String::from("");
-            return None;
-        }
-    }
-    if let Ok(result) = std::fs::File::create(file_name.as_str()) {
-        Some(result)
-    } else {
-        println!("Unable to open file.");
-        None
-    }
 }
