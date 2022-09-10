@@ -3,7 +3,11 @@
 #include <vector>
 #include <chrono>
 #include <random>
-#include <Eigen/Dense>
+#include <complex>
+#include <cstring>
+
+constexpr float PI = 3.141592653589793;
+constexpr float C_VEL = 299792458;  // speed of light
 
 struct ChirpParams {
     float base_f;
@@ -16,8 +20,6 @@ struct ChirpParams {
     bool reset;
 };
 
-void simulateOnce(const ChirpParams& p, float* spect, float& range, float& vel, size_t& sp_size, float gt_r, float gt_v, float cutoff);
-
 template <typename T>
 class ChirpGenerator {
 using complex_t = std::complex<T>;
@@ -28,43 +30,37 @@ public:
         total_len = static_cast<size_t>(edge_length / sample_int) + 1;
         pos_chirp.resize(total_len, 0.);
         neg_chirp.resize(total_len, 0.);
-        #pragma omp parallel sections 
-        {
-            #pragma omp section 
-            {
-                generateSignalPoints(pos_chirp, 1.0);
-            }
-            #pragma omp section 
-            {
-                generateSignalPoints(neg_chirp, -1.0);
-            }
-        }
+        generateSignalPoints(pos_chirp, 1.0);
+        generateSignalPoints(neg_chirp, -1.0, band_width);
+        engine.seed(std::chrono::system_clock::now().time_since_epoch().count());
     }
 public:
     void reset(const ChirpParams& p) {
-        base_freq = p.base_f;
-        edge_length = p.edge_len;
-        band_width = p.band_w; 
-        sample_int = p.sp_int; 
-        tof_noise_std = p.tof_std;
-        doppler_noise_std = p.doppler_std; 
-        sample_noise_std = p.sample_std;
+        if (p.reset == true) {
+            base_freq = p.base_f;
+            edge_length = p.edge_len;
+            band_width = p.band_w; 
+            sample_int = p.sp_int; 
+            tof_noise_std = p.tof_std;
+            doppler_noise_std = p.doppler_std; 
+            sample_noise_std = p.sample_std;
+        }
     }
 
     void sendOneFrame(std::vector<T>& spectrum, T& f_pos, T& f_neg, T gt_depth, T gt_vel, T cut_off);      // simulation
 
     void solve(T beat_pos, T beat_neg, T& range, T& speed) const {
-        range = c_vel * edge_length / (8. * band_width) * (beat_pos + beat_neg);
+        range = C_VEL * edge_length / (8. * band_width) * (beat_pos + beat_neg);
         speed = wave_length / 4. * (beat_neg - beat_pos);
+        printf("Solved, %lf, %lf, %lf\n", range, speed, beat_pos + beat_neg);
     }
 private:
     // default cut off frequency is 1MHz
     void processOneEdge(std::vector<T>& out_spectrum, T& beat_f, T delay, T sign, T doppler_mv, T cut_off = 1e7) const;
 
-    T set_delay_time(T d_time) {        // should be called every evaluation
+    void set_delay_time(T d_time) {        // should be called every evaluation
         // non-fixed random seed
-        static std::default_random_engine engine(std::chrono::system_clock::now().time_since_epoch().count());
-        static std::normal_distribution<T> tof_noise(0.0, tof_noise_std);
+        std::normal_distribution<T> tof_noise(0.0, tof_noise_std);
         delay_time = d_time + tof_noise(engine);
     }
 
@@ -108,6 +104,20 @@ private:
     size_t total_len;
     std::vector<T> pos_chirp;
     std::vector<T> neg_chirp;
+    std::default_random_engine engine;
 };
-
 // Rust API
+
+template<typename T>
+void simulateOnce(const ChirpParams& p, T* spect, T& range, T& vel, size_t& sp_size, T gt_r, T gt_v, T cutoff) {
+    static ChirpGenerator<T> cg(p);
+    std::vector<T> spectrum;
+    T f_pos = 0., f_neg = 0.;
+    printf("Sending one frame...\n");
+    cg.sendOneFrame(spectrum, f_pos, f_neg, gt_r, gt_v, cutoff);
+    printf("Completed, %lf, %lf\n", f_pos, f_neg);
+    cg.solve(f_pos, f_neg, range, vel);
+    sp_size = spectrum.size();
+    memcpy(spect, spectrum.data(), sp_size * sizeof(T));
+// }
+}

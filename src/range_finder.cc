@@ -27,6 +27,16 @@ struct Vec2 {
     }
 };
 
+// p1 is starting point, p2 is ending point
+inline float getRange(const Vec2& pos, const Vec2& v, const Vec2& p1, const Vec2& p2) {
+    const Vec2 neg_s2e = p1 - p2; // s2e vec (reversed order)
+    if (-neg_s2e.x * v.y + neg_s2e.y * v.x >= 0.) {
+        return -1e3;
+    }
+    const Vec2 p2s = p1 - pos;
+    return (-neg_s2e.y * p2s.x + p2s.y * neg_s2e.x) / (neg_s2e.x * v.y - neg_s2e.y * v.x);
+}
+
 // Rust API, therefore we can not use std::vector but pointer
 void laserRangeFinder(const Vec3& pose, const Vec2* const pts, const char* const ids, int max_num, float& min_range) {
     std::vector<float> min_ranges;
@@ -45,16 +55,6 @@ void laserRangeFinder(const Vec3& pose, const Vec2* const pts, const char* const
         }
     }
     min_range = *std::min_element(min_ranges.cbegin(), min_ranges.cend());
-}
-
-// p1 is starting point, p2 is ending point
-inline float getRange(const Vec2& pos, const Vec2& v, const Vec2& p1, const Vec2& p2) {
-    const Vec2 neg_s2e = p1 - p2; // s2e vec (reversed order)
-    if (-neg_s2e.x * v.y + neg_s2e.y * v.x >= 0.) {
-        return -1e3;
-    }
-    const Vec2 p2s = p1 - pos;
-    return (-neg_s2e.y * p2s.x + p2s.y * neg_s2e.x) / (neg_s2e.x * v.y - neg_s2e.y * v.x);
 }
 
 }
