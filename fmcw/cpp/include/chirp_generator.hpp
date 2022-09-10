@@ -108,6 +108,11 @@ private:
 };
 // Rust API
 
+
+// Rust API
+extern  "C" {
+template class ChirpGenerator<double>;
+
 template<typename T>
 void simulateOnce(const ChirpParams& p, T* spect, T& range, T& vel, size_t& sp_size, T gt_r, T gt_v, T cutoff) {
     static ChirpGenerator<T> cg(p);
