@@ -22,39 +22,44 @@ struct Vec2 {
         return Vec2(x - p.x, y - p.y);         // Return value optimized?
     }
 
-    float norm() const {
-        return sqrtf(x * x + y * y);
+    float dot(const Vec2& p) const {
+        return x * p.x + y * p.y;
     }
 };
 
 // p1 is starting point, p2 is ending point
-inline float getRange(const Vec2& pos, const Vec2& v, const Vec2& p1, const Vec2& p2) {
-    const Vec2 neg_s2e = p1 - p2; // s2e vec (reversed order)
-    if (-neg_s2e.x * v.y + neg_s2e.y * v.x >= 0.) {
-        return -1e3;
+inline float getRange(const Vec2& pos, const Vec2& v_perp, const Vec2& p1, const Vec2& p2) {
+    const Vec2& s2e = p2 - p1;
+    const Vec2& obs_v = pos - p1;
+    float D = v_perp.dot(s2e);
+    if (D < 0.) {
+        return -1e-3;
     }
-    const Vec2 p2s = p1 - pos;
-    return (-neg_s2e.y * p2s.x + p2s.y * neg_s2e.x) / (neg_s2e.x * v.y - neg_s2e.y * v.x);
+    float alpha = v_perp.dot(obs_v) / D;
+    if (alpha >= 1. || alpha <= 0.) {
+        return -1e-3;
+    }
+    return (-s2e.y * obs_v.x + s2e.x * obs_v.y) / D;
 }
 
 // Rust API, therefore we can not use std::vector but pointer
 void laserRangeFinder(const Vec3& pose, const Vec2* const pts, const char* const ids, int max_num, float& min_range) {
     std::vector<float> min_ranges;
-    min_ranges.resize(8, 1e9);
+    min_ranges.resize(8, 1e5);
     const Vec2 pos(pose.x, pose.y);
-    const Vec2 dir(cosf(pose.z), sinf(pose.z));
+    const Vec2 v_perp(-sinf(pose.z), cosf(pose.z));         // direction vector (rotated 90 deg)
     #pragma omp parallel for num_threads(8)
     for (int i = 0; i < max_num; i++) {
-        int tid = omp_get_thread_num();
         const int offset = ids[i];
         const int this_pt_id = i;
         const int next_pt_id = i + (offset < 0 ? offset : 1);
-        float range = getRange(pos, dir, pts[this_pt_id], pts[next_pt_id]);
-        if (range > 0. && min_ranges[tid] > range) {
+        float range = getRange(pos, v_perp, pts[this_pt_id], pts[next_pt_id]);
+        int tid = omp_get_thread_num();
+        if (range > 0. && range < min_ranges[tid]) {
             min_ranges[tid] = range; 
         }
     }
-    min_range = *std::min_element(min_ranges.cbegin(), min_ranges.cend());
+    min_range = *std::min_element(min_ranges.begin(), min_ranges.end());
 }
 
 }

@@ -3,12 +3,11 @@
         {
             "name": "Linux",        
             "includePath": [
-                "/opt/ros/noetic/include/**",
                 "/usr/include/**",
                 "/usr/include/eigen3/**",
                 "/usr/local/include/**",
-                "${workspaceFolder}/include/**",
-                "${workspaceFolder}/thirdparty/**"
+                "${workspaceFolder}/fmcw/cpp/include/**",
+                "${workspaceFolder}/fmcw/cpp/thirdparty/**"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

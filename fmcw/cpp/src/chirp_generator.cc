@@ -1,6 +1,6 @@
 #include <algorithm>
-#include "simple_fft/fft.h"
-#include "chirp_generator.hpp"
+#include "../thirdparty/simple_fft/fft.hpp"
+#include "../include/chirp_generator.hpp"
 
 template <typename T>
 void ChirpGenerator<T>::sendOneFrame(std::vector<T>& spectrum, T& f_pos, T& f_neg, T gt_depth, T gt_vel, T cut_off) {
@@ -93,5 +93,20 @@ typename ChirpGenerator<T>::complex_t ChirpGenerator<T>::freqButterworth4(int k,
 }
 
 template class ChirpGenerator<float>;
-// Rust API
-// extern  "C" {
+extern  "C" {
+void simulateOnce(ChirpParams& p, float* spect, float& range, float& vel, float gt_r, float gt_v) {
+    static ChirpGenerator<float> cg(p);
+    std::vector<float> spectrum;
+    float f_pos = 0., f_neg = 0.;
+    if (p.reset) {
+        cg.reset(p);
+        p.reset = false;
+    }
+    cg.sendOneFrame(spectrum, f_pos, f_neg, gt_r, gt_v, p.cut_off);
+    cg.solve(f_pos, f_neg, range, vel);
+    float max_elem = *std::max_element(spectrum.begin(), spectrum.end());
+    std::transform(spectrum.begin(), spectrum.end(), spectrum.begin(), [max_elem](float v) {return sqrtf(v / max_elem);});
+    size_t sp_size = static_cast<int>(spectrum.size());
+    memcpy(spect, spectrum.data(), sp_size * sizeof(float));
+}
+}
