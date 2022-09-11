@@ -93,7 +93,6 @@ typename ChirpGenerator<T>::complex_t ChirpGenerator<T>::freqButterworth4(int k,
 }
 
 template class ChirpGenerator<float>;
-<<<<<<< HEAD:fmcw/cpp/src/chirp_generator.cc
 extern  "C" {
 void simulateOnce(ChirpParams& p, float* spect, float& range, float& vel, float gt_r, float gt_v) {
     static ChirpGenerator<float> cg(p);
@@ -111,7 +110,3 @@ void simulateOnce(ChirpParams& p, float* spect, float& range, float& vel, float 
     memcpy(spect, spectrum.data(), sp_size * sizeof(float));
 }
 }
-=======
-// Rust API
-// extern  "C" {
->>>>>>> ea11cc6134fefba13a309a2253bfcb87054e2dfe:src/chirp_generator.cc
