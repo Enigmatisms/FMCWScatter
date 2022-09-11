@@ -13,7 +13,6 @@ fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event:
     model.egui.handle_raw_event(event);
 }
 
-// fn dummy_view(_app: &App, _model: &Model, _frame: Frame) {}
 fn dummy_key_pressed(_app: &App, _model: &mut Model, _key: Key) {}
 fn dummy_key_released(_app: &App, _model: &mut Model, _key: Key) {}
 fn dummy_mouse_moved(_app: &App, _model: &mut Model, _pos: Point2) {}
