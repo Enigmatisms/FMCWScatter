@@ -9,3 +9,4 @@ pub mod structs;
 pub mod utils;
 pub mod viz;
 pub mod toggle;
+pub mod error_plot;

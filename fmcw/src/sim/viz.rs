@@ -148,7 +148,6 @@ fn view(app: &App, model: &Model, frame: Frame) {
 fn view_spectrum(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     
-    
     let valid_spect: Vec<&f32> = model.chirp.spect.iter().take_while(|&x| *x > 1e-2).collect();
     let total_len = valid_spect.len();
     if total_len == 0 {
@@ -161,13 +160,12 @@ fn view_spectrum(app: &App, model: &Model, frame: Frame) {
     });
     draw.background().rgba(0., 0., 0., 1.0);
     draw.polyline()
+        .weight(1.5)
         .points(pts)
         .rgba(1., 0., 0., 1.);
     draw.to_frame(app, &frame).unwrap();
 }
 
-
-/// TODO: visualize single ray
 fn visualize_single_ray(draw: &Draw, range: f32, pose: &Point3, color: &[f32; 4]) {
     let dir = pt2( pose.z.cos(), pose.z.sin());
     let start_p = pt2(pose.x, pose.y);
