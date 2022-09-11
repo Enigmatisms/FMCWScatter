@@ -15,8 +15,8 @@ fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event:
 
 #[inline(always)]
 fn zero_padding(vec: &mut Vec<libc::c_float>, sp_int: f32, sp_time: f32) {
-    let raw_num = (sp_time / sp_int).log2().ceil() as usize;
-    vec.resize(raw_num, 0.);
+    let raw_num: u32 = (sp_time / sp_int).log2().ceil() as u32;
+    vec.resize(2_usize.pow(raw_num), 0.);
 }
 
 pub fn model(app: &App) -> Model {
@@ -71,8 +71,9 @@ pub fn update(_app: &App, _model: &mut Model, _update: Update) {
         if _model.fmcw_p.reset == true {
             zero_padding(&mut _model.chirp.spect, _model.fmcw_p.sp_int, _model.fmcw_p.edge_len);
         }
-        fmcw_helper::simulateOnce(&mut _model.fmcw_p, _model.chirp.spect.as_mut_ptr(), 
-        &mut _model.chirp.pred_r, &mut _model.chirp.pred_v, _model.chirp.gt_r, _model.velo.x);
+        fmcw_helper::simulateOnce(&mut _model.fmcw_p, _model.chirp.spect.as_mut_ptr(), &mut _model.chirp.pred_r,
+         &mut _model.chirp.pred_v, _model.chirp.gt_r * _model.chirp.map_resolution, _model.velo.x * _model.chirp.map_resolution);
+        println!("Pred range: {}, range: {}, pred vel: {}, vel: {}", _model.chirp.pred_r, _model.chirp.gt_r * _model.chirp.map_resolution, _model.chirp.pred_v, _model.velo.x * _model.chirp.map_resolution);
     }
 }
 

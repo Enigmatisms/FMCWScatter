@@ -32,6 +32,7 @@ pub struct Chirp_param {
     pub tof_std: libc::c_float,
     pub doppler_std: libc::c_float,
     pub sample_std: libc::c_float,
+    pub cut_off: libc::c_float,
     pub reset: bool
 }
 
