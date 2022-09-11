@@ -70,6 +70,32 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
             ui.add(egui::Slider::new(&mut pid.z, 0.00..=0.1));
             ui.end_row();
 
+            ui.label("Base freq: ");
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.base_f, 3e9..=5e9)).clicked();
+            ui.end_row();
+            ui.label("Chirp time: ");
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.edge_len, 2e-6..=4e-6)).clicked();
+            ui.end_row();
+            ui.label("Band width: ");
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.band_w, 5e9..=1e10)).clicked();
+            ui.end_row();
+            ui.label("Sample time: ");
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.sp_int, 3.33e-11..=5e-11)).clicked();
+            ui.end_row();
+            ui.label("ToF std: ");
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.tof_std, 2e-11..=3e-10)).clicked();
+            ui.end_row();
+            ui.label("Doppler std: ");
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.doppler_std, 1e-5..=1e-3)).clicked();
+            ui.end_row();
+
+            ui.label("Sample std: ");
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.sample_std, 0.001..=0.1)).clicked();
+            ui.end_row();
+            ui.label("LPF cutoff: ");
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.cut_off, 2e8..=2e10)).clicked();
+            ui.end_row();
+
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
                 if ui.button("Centering view").clicked() {
                     wtrans.clear_offset();

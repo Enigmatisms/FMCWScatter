@@ -74,16 +74,18 @@ pub fn update(_app: &App, _model: &mut Model, _update: Update) {
     _model.pose.x = _model.pose.x +_model.velo.x * cosa - _model.velo.y * sina; 
     _model.pose.y = _model.pose.y +_model.velo.x * sina + _model.velo.y * cosa; 
 
-    let mouse = plot::local_mouse_position(_app, &_model.wtrans);
-    let dir = mouse - pt2(_model.pose.x, _model.pose.y);
-    let target_angle = dir.y.atan2(dir.x);
-    let diff = utils::good_angle(target_angle - _model.pose.z);
     unsafe {
-        LOCAL_INT += diff;
-        let kd_val = diff - LOCAL_DIFF;
-        LOCAL_DIFF = diff;
-        _model.pose.z += _model.pid.x * diff + _model.pid.y * LOCAL_INT + _model.pid.z * kd_val;
-        _model.pose.z = utils::good_angle(_model.pose.z);
+        if _model.inside_gui == false {
+            let mouse = plot::local_mouse_position(_app, &_model.wtrans);
+            let dir = mouse - pt2(_model.pose.x, _model.pose.y);
+            let target_angle = dir.y.atan2(dir.x);
+            let diff = utils::good_angle(target_angle - _model.pose.z);
+            LOCAL_INT += diff;
+            let kd_val = diff - LOCAL_DIFF;
+            LOCAL_DIFF = diff;
+            _model.pose.z += _model.pid.x * diff + _model.pid.y * LOCAL_INT + _model.pid.z * kd_val;
+            _model.pose.z = utils::good_angle(_model.pose.z);
+        }
         let pose = fmcw_helper::Vec3_cpp {x:_model.pose.x, y:_model.pose.y, z:_model.pose.z};
         fmcw_helper::laserRangeFinder(
             &pose, _model.chirp.flattened_pts.as_ptr(), _model.chirp.nexts.as_ptr(), 
