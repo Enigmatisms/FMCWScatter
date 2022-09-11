@@ -3,8 +3,11 @@ use super::fmcw_helper;
 
 pub struct WindowCtrl {
     pub window_id: WindowId,
+    pub sub_win_id: WindowId,
     pub win_w: f32,
     pub win_h: f32,
+    pub sub_w: f32,
+    pub sub_h: f32,
     pub gui_visible: bool,
     pub exit_func: fn(app: &App)
 }
@@ -41,8 +44,11 @@ pub struct KeyStatus {
 }
 
 impl WindowCtrl {
-    pub fn new(win_id: WindowId, win_w: f32, win_h: f32, exit_f: fn(app: &App)) -> WindowCtrl {
-        WindowCtrl {window_id: win_id, win_w: win_w, win_h: win_h, gui_visible: true, exit_func: exit_f}
+    pub fn new(win_id: WindowId, sub_id: WindowId, win_w: f32, win_h: f32, sub_w: f32, sub_h: f32, exit_f: fn(app: &App)) -> WindowCtrl {
+        WindowCtrl {
+            window_id: win_id, sub_win_id: sub_id, win_w: win_w, win_h: win_h, 
+            sub_w: sub_w, sub_h: sub_h, gui_visible: true, exit_func: exit_f
+        }
     }
 
     pub fn switch_gui_visibility(&mut self) {

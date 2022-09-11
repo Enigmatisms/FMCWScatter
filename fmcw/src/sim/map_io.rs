@@ -19,7 +19,9 @@ pub struct ScannerConfig {
 #[derive(Deserialize, Serialize, Clone)]
 pub struct ScreenConfig {
     pub width: u32,
-    pub height: u32
+    pub height: u32,
+    pub sub_width: u32,
+    pub sub_height: u32
 }
 
 #[repr(C)]

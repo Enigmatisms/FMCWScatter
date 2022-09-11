@@ -33,7 +33,7 @@ pub struct Model {
 
 impl Model {
     pub fn new(
-        app: &App, window_id:  WindowId, config: map_io::Config, meshes: map_io::Meshes) 
+        app: &App, window_id: WindowId, sub_id: WindowId, config: map_io::Config, meshes: map_io::Meshes) 
     -> Model {
         let mut flat_pts: Vec<fmcw_helper::Vec2_cpp> = Vec::new();
         let mut next_ids: Vec<i8> = Vec::new();
@@ -43,7 +43,10 @@ impl Model {
             chirp: ChirpRelated::new(flat_pts, next_ids),
             fmcw_p: config.fmcw_p,
             plot_config: PlotConfig::new(),
-            wctrl: WindowCtrl::new(window_id, config.screen.width as f32, config.screen.height as f32, exit),
+            wctrl: WindowCtrl::new(
+                window_id, sub_id, config.screen.width as f32, config.screen.height as f32, 
+                config.screen.sub_width as f32, config.screen.sub_height as f32, exit
+            ),
             wtrans: WindowTransform::new(),
             pose: pt3(0., 0., 0.),
             velo: pt3(0., 0., 0.),

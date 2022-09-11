@@ -99,7 +99,7 @@ private:
     T tof_noise_std;        // noise of ToF (should be small)
     T doppler_noise_std;    // Doppler effect noise std
     T sample_noise_std;     // noise add to each time sample (gaussian std) (之后需要给此值赋值)
-    T wave_length = 1550e-9;// wave length of LiDAR (1550 nm)
+    T wave_length = 0.5e-9;// wave length of LiDAR (1550 nm)
 
     size_t total_len;
     std::vector<T> pos_chirp;

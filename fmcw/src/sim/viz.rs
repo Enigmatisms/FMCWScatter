@@ -13,6 +13,15 @@ fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event:
     model.egui.handle_raw_event(event);
 }
 
+// fn dummy_view(_app: &App, _model: &Model, _frame: Frame) {}
+fn dummy_key_pressed(_app: &App, _model: &mut Model, _key: Key) {}
+fn dummy_key_released(_app: &App, _model: &mut Model, _key: Key) {}
+fn dummy_mouse_moved(_app: &App, _model: &mut Model, _pos: Point2) {}
+fn dummy_mouse_pressed(_app: &App, _model: &mut Model, _button: MouseButton) {}
+fn dummy_mouse_released(_app: &App, _model: &mut Model, _button: MouseButton) {}
+fn dummy_raw_event(_app: &App, _model: &mut Model, _event: &nannou::winit::event::WindowEvent) {}
+fn dummy_mouse_wheel(_app: &App, _model: &mut Model, _dt: MouseScrollDelta, _phase: TouchPhase) {}
+
 #[inline(always)]
 fn zero_padding(vec: &mut Vec<libc::c_float>, sp_int: f32, sp_time: f32) {
     let raw_num: u32 = (sp_time / sp_int).log2().ceil() as u32;
@@ -34,13 +43,26 @@ pub fn model(app: &App) -> Model {
         .mouse_wheel(ctrl::mouse_wheel)
         .size(config.screen.width, config.screen.height)
         .view(view)
-        .build()
-        .unwrap();
+        .build().unwrap();
 
+    let sub_win_id = app.new_window()
+        .event(event)
+        .key_pressed(dummy_key_pressed)
+        .key_released(dummy_key_released)
+        .raw_event(dummy_raw_event)
+        .mouse_moved(dummy_mouse_moved)
+        .mouse_pressed(dummy_mouse_pressed)
+        .mouse_released(dummy_mouse_released)
+        .mouse_wheel(dummy_mouse_wheel)
+        .view(view_spectrum)
+        .always_on_top(true)
+        .size(config.screen.sub_width, config.screen.sub_height)
+        .build().unwrap();
+    
     app.set_exit_on_escape(false);
     let meshes: map_io::Meshes = map_io::parse_map_file(config.map_path.as_str()).unwrap();
 
-    Model::new(app, window_id, config, meshes)
+    Model::new(app, window_id, sub_win_id, config, meshes)
 }
 
 pub fn update(_app: &App, _model: &mut Model, _update: Update) {
@@ -121,6 +143,28 @@ fn view(app: &App, model: &Model, frame: Frame) {
     draw.to_frame(app, &frame).unwrap();
     model.egui.draw_to_frame(&frame).unwrap();
 }
+
+fn view_spectrum(app: &App, model: &Model, frame: Frame) {
+    let draw = app.draw();
+    
+    
+    let valid_spect: Vec<&f32> = model.chirp.spect.iter().take_while(|&x| *x > 1e-2).collect();
+    let total_len = valid_spect.len();
+    if total_len == 0 {
+        return;
+    }
+    let (half_w, half_h) = (model.wctrl.sub_w / 2. - 10., model.wctrl.sub_h / 2. - 10.);
+    
+    let pts = (0..total_len).map(|i| {
+        pt2((i as f32 / total_len as f32) * 2. * half_w - half_w, *valid_spect[i] * 2. * half_h - half_h)
+    });
+    draw.background().rgba(0., 0., 0., 1.0);
+    draw.polyline()
+        .points(pts)
+        .rgba(1., 0., 0., 1.);
+    draw.to_frame(app, &frame).unwrap();
+}
+
 
 /// TODO: visualize single ray
 fn visualize_single_ray(draw: &Draw, range: f32, pose: &Point3, color: &[f32; 4]) {
