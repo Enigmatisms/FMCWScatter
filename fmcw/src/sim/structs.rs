@@ -36,7 +36,8 @@ pub struct ChirpRelated {
 pub struct PlotConfig {
     pub draw_grid: bool,
     pub grid_step: f32,
-    pub grid_alpha: f32
+    pub grid_alpha: f32,
+    pub reserve: f32
 }
 
 pub struct KeyStatus {
@@ -74,7 +75,7 @@ impl WindowTransform {
 impl PlotConfig {
     pub fn new() -> Self {
         PlotConfig {
-            draw_grid: false, grid_step: 100.0, grid_alpha: 0.01
+            draw_grid: false, grid_step: 100.0, grid_alpha: 0.01, reserve: 100.,
         }
     }
 }

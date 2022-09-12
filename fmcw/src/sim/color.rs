@@ -12,6 +12,12 @@ pub struct EditorColor {
     pub line_color: Color4,
     pub shape_color: Color4,
     pub select_box: Color4,
+
+    pub spec_color: Color4,
+    pub sepline_color: Color4,
+    pub pred_color: Color4,
+    pub truth_color: Color4,
+    
     pub lidar_color: LColor4,
     pub night_mode: bool
 }
@@ -28,6 +34,12 @@ impl EditorColor {
             line_color: (0.913725, 0.835294, 0.792157, 0.9),
             shape_color: (0.803922, 0.760784, 0.682353, 1.0),
             select_box: (0.129412, 0.333333, 0.803922, 0.1),
+
+            spec_color: (1., 0., 0., 1.),
+            sepline_color: (1., 1., 1., 0.8),
+            pred_color: (0.8, 0.8, 0., 0.7),
+            truth_color: (1., 1., 1., 0.7),
+
             lidar_color: [1., 0., 0., 1.],
             night_mode: true
         }
@@ -45,6 +57,11 @@ impl EditorColor {
             self.line_color = (0.913725, 0.835294, 0.792157, 0.9);
             self.shape_color = (0.803922, 0.760784, 0.682353, 1.0);
             self.select_box = (0.129412, 0.333333, 0.803922, 0.1);
+
+            self.spec_color = (1., 0., 0., 1.);
+            self.sepline_color = (1., 1., 1., 0.8);
+            self.pred_color = (0.8, 0.8, 0., 0.7);
+            self.truth_color = (1., 1., 1., 0.7);
         } else {
             self.traj_color = (0., 0.5, 0.);
             self.bg_color = (1., 1., 1.);
@@ -56,6 +73,11 @@ impl EditorColor {
             self.line_color = (0.082353, 0.074510, 0.235294, 0.9);
             self.shape_color = (0.058824, 0.054902, 0.054902, 1.0);
             self.select_box = (0.129412, 0.333333, 0.803922, 0.3);
+
+            self.spec_color = (0., 0., 0.7, 1.);
+            self.sepline_color = (0.1, 0.1, 0.1, 1.);
+            self.pred_color = (0.7, 0.7, 0., 0.8);
+            self.truth_color = (0., 0., 0., 0.8);
         }
     }
 }

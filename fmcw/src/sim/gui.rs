@@ -55,7 +55,7 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
             ui.end_row();
             
             ui.label("Max linear vel:");
-            ui.add(egui::Slider::new(&mut velo_max.x, 0.2..=2.0));
+            ui.add(egui::Slider::new(&mut velo_max.x, 0.2..=10.0));
             ui.end_row();
             
             ui.label("Angular K(p): ");
@@ -94,6 +94,10 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
             ui.end_row();
             ui.label("LPF cutoff: ");
             fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.cut_off, 2e8..=2e10)).clicked();
+            ui.end_row();
+
+            ui.label("LiDAR color picker:");
+            ui.color_edit_button_rgba_unmultiplied(&mut color.lidar_color);
             ui.end_row();
 
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {

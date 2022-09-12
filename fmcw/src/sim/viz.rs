@@ -9,17 +9,13 @@ use super::plot;
 use super::utils;
 use super::map_io;
 
+const SPECTRUM_STR: &str = "Spectrum";
+const VELOCITY_STR: &str = "Velocity: white -- ground truth, yellow -- prediction";
+const ERROR_STR: &str = "Average range error (m)";
+
 fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event::WindowEvent) {
     model.egui.handle_raw_event(event);
 }
-
-fn dummy_key_pressed(_app: &App, _model: &mut Model, _key: Key) {}
-fn dummy_key_released(_app: &App, _model: &mut Model, _key: Key) {}
-fn dummy_mouse_moved(_app: &App, _model: &mut Model, _pos: Point2) {}
-fn dummy_mouse_pressed(_app: &App, _model: &mut Model, _button: MouseButton) {}
-fn dummy_mouse_released(_app: &App, _model: &mut Model, _button: MouseButton) {}
-fn dummy_raw_event(_app: &App, _model: &mut Model, _event: &nannou::winit::event::WindowEvent) {}
-fn dummy_mouse_wheel(_app: &App, _model: &mut Model, _dt: MouseScrollDelta, _phase: TouchPhase) {}
 
 #[inline(always)]
 fn zero_padding(vec: &mut Vec<libc::c_float>, sp_int: f32, sp_time: f32) {
@@ -46,13 +42,6 @@ pub fn model(app: &App) -> Model {
 
     let sub_win_id = app.new_window()
         .event(event)
-        .key_pressed(dummy_key_pressed)
-        .key_released(dummy_key_released)
-        .raw_event(dummy_raw_event)
-        .mouse_moved(dummy_mouse_moved)
-        .mouse_pressed(dummy_mouse_pressed)
-        .mouse_released(dummy_mouse_released)
-        .mouse_wheel(dummy_mouse_wheel)
         .view(view_spectrum)
         .always_on_top(true)
         .size(config.screen.sub_width, config.screen.sub_height)
@@ -64,39 +53,40 @@ pub fn model(app: &App) -> Model {
     Model::new(app, window_id, sub_win_id, config, meshes)
 }
 
-pub fn update(_app: &App, _model: &mut Model, _update: Update) {
-    gui::update_gui(_app, _model, &_update);
+pub fn update(_app: &App, model: &mut Model, _update: Update) {
+    gui::update_gui(_app, model, &_update);
     static mut LOCAL_INT: f32 = 0.0;
     static mut LOCAL_DIFF: f32 = 0.0;
-    if _model.initialized == false {return;}
-    let sina = _model.pose.z.sin();
-    let cosa = _model.pose.z.cos();
-    _model.pose.x = _model.pose.x +_model.velo.x * cosa - _model.velo.y * sina; 
-    _model.pose.y = _model.pose.y +_model.velo.x * sina + _model.velo.y * cosa; 
+    if model.initialized == false {return;}
+    let sina = model.pose.z.sin();
+    let cosa = model.pose.z.cos();
+    model.pose.x = model.pose.x + model.velo.x * cosa - model.velo.y * sina; 
+    model.pose.y = model.pose.y + model.velo.x * sina + model.velo.y * cosa; 
 
     unsafe {
-        if _model.inside_gui == false {
-            let mouse = plot::local_mouse_position(_app, &_model.wtrans);
-            let dir = mouse - pt2(_model.pose.x, _model.pose.y);
+        if model.inside_gui == false {
+            let mouse = plot::local_mouse_position(_app, &model.wtrans);
+            let dir = mouse - pt2(model.pose.x, model.pose.y);
             let target_angle = dir.y.atan2(dir.x);
-            let diff = utils::good_angle(target_angle - _model.pose.z);
+            let diff = utils::good_angle(target_angle - model.pose.z);
             LOCAL_INT += diff;
             let kd_val = diff - LOCAL_DIFF;
             LOCAL_DIFF = diff;
-            _model.pose.z += _model.pid.x * diff + _model.pid.y * LOCAL_INT + _model.pid.z * kd_val;
-            _model.pose.z = utils::good_angle(_model.pose.z);
+            model.pose.z += model.pid.x * diff + model.pid.y * LOCAL_INT + model.pid.z * kd_val;
+            model.pose.z = utils::good_angle(model.pose.z);
         }
-        let pose = fmcw_helper::Vec3_cpp {x:_model.pose.x, y:_model.pose.y, z:_model.pose.z};
+        let pose = fmcw_helper::Vec3_cpp {x:model.pose.x, y:model.pose.y, z:model.pose.z};
         fmcw_helper::laserRangeFinder(
-            &pose, _model.chirp.flattened_pts.as_ptr(), _model.chirp.nexts.as_ptr(), 
-            _model.chirp.nexts.len() as i32, &mut _model.chirp.gt_r
+            &pose, model.chirp.flattened_pts.as_ptr(), model.chirp.nexts.as_ptr(), 
+            model.chirp.nexts.len() as i32, &mut model.chirp.gt_r
         );
-        if _model.fmcw_p.reset == true {
-            zero_padding(&mut _model.chirp.spect, _model.fmcw_p.sp_int, _model.fmcw_p.edge_len);
+        if model.fmcw_p.reset == true {
+            zero_padding(&mut model.chirp.spect, model.fmcw_p.sp_int, model.fmcw_p.edge_len);
         }
-        fmcw_helper::simulateOnce(&mut _model.fmcw_p, _model.chirp.spect.as_mut_ptr(), &mut _model.chirp.pred_r,
-         &mut _model.chirp.pred_v, _model.chirp.gt_r * _model.chirp.map_resolution, _model.velo.x * _model.chirp.map_resolution);
-        println!("Pred range: {}, range: {}, pred vel: {}, vel: {}", _model.chirp.pred_r, _model.chirp.gt_r * _model.chirp.map_resolution, _model.chirp.pred_v, _model.velo.x * _model.chirp.map_resolution);
+        fmcw_helper::simulateOnce(&mut model.fmcw_p, model.chirp.spect.as_mut_ptr(), &mut model.chirp.pred_r,
+         &mut model.chirp.pred_v, model.chirp.gt_r * model.chirp.map_resolution, model.velo.x * model.chirp.map_resolution);
+        model.err_plot.push((model.chirp.pred_r - model.chirp.gt_r * model.chirp.map_resolution).abs());
+        model.err_plot.push_vel(model.chirp.pred_v, model.velo.x * model.chirp.map_resolution);
     }
 }
 
@@ -146,23 +136,72 @@ fn view(app: &App, model: &Model, frame: Frame) {
 }
 
 fn view_spectrum(app: &App, model: &Model, frame: Frame) {
-    let draw = app.draw();
-    
     let valid_spect: Vec<&f32> = model.chirp.spect.iter().take_while(|&x| *x > 1e-2).collect();
-    let total_len = valid_spect.len();
-    if total_len == 0 {
-        return;
-    }
-    let (half_w, half_h) = (model.wctrl.sub_w / 2. - 10., model.wctrl.sub_h / 2. - 10.);
     
-    let pts = (0..total_len).map(|i| {
-        pt2((i as f32 / total_len as f32) * 2. * half_w - half_w, *valid_spect[i] * 2. * half_h - half_h)
-    });
-    draw.background().rgba(0., 0., 0., 1.0);
-    draw.polyline()
-        .weight(1.5)
-        .points(pts)
-        .rgba(1., 0., 0., 1.);
+    let draw = app.draw();
+    let total_len = valid_spect.len();
+    let (half_w, h_span, half_h) = (model.wctrl.sub_w / 2. - 10., model.wctrl.sub_h / 3., model.wctrl.sub_h / 2.);
+    let separation_line_h = h_span / 2.;
+    let c = &model.color;
+    let (lc_r, lc_g, lc_b, lc_a) = c.sepline_color;
+
+    draw.background().rgb(c.bg_color.0, c.bg_color.1, c.bg_color.2);
+    draw.line().weight(4.)
+        .start(pt2(-half_w, separation_line_h))
+        .end(pt2(half_w, separation_line_h))
+        .rgba(lc_r, lc_g, lc_b, lc_a);
+    draw.line().weight(4.)
+        .start(pt2(-half_w, -separation_line_h))
+        .end(pt2(half_w, -separation_line_h))
+        .rgba(lc_r, lc_g, lc_b, lc_a);
+    draw.text(SPECTRUM_STR)
+        .xy(pt2(half_w - 35., half_h - 5.))
+        .font_size(14)
+        .rgba(lc_r, lc_g, lc_b, lc_a);
+    draw.text(VELOCITY_STR)
+        .xy(pt2(half_w - 100., separation_line_h - 15.))
+        .font_size(14).right_justify()
+        .rgba(lc_r, lc_g, lc_b, lc_a);
+    draw.text(ERROR_STR)
+        .xy(pt2(half_w - 80., -separation_line_h - 8.))
+        .font_size(14)
+        .rgba(lc_r, lc_g, lc_b, lc_a);
+
+    if total_len > 0 {
+        let spectrum_pts = (0..total_len).map(|i| {
+            pt2((i as f32 / total_len as f32) * half_w * 2. - half_w, *valid_spect[i] * h_span + separation_line_h)
+        });
+        
+        draw.polyline()
+            .weight(1.5)
+            .points(spectrum_pts)
+            .rgba(c.spec_color.0, c.spec_color.1, c.spec_color.2, c.spec_color.3);
+    }
+    if let Some((err_pts, avg_y, err)) = model.err_plot.get_err_pts(half_w, h_span, model.wctrl.sub_h / 2.) {
+        draw.polyline()
+            .weight(1.5)
+            .points(err_pts)
+            .rgba(c.truth_color.0, c.truth_color.1, c.truth_color.2, c.truth_color.3);
+        draw.line()
+            .start(pt2(-half_w, avg_y))
+            .end(pt2(half_w, avg_y))
+            .rgba(c.pred_color.0, c.pred_color.1, c.pred_color.2, c.pred_color.3);
+        let msg = format!("Average error: {:.3}", err);
+        draw.text(&msg)
+            .xy(pt2(-half_w + 100., avg_y - 15.))
+            .font_size(14)
+            .rgba(lc_r, lc_g, lc_b, lc_a);
+    }
+    if let Some((gtv_pts, pred_pts)) = model.err_plot.get_vel_pts(half_w, h_span) {
+        draw.polyline()
+            .weight(1.5)
+            .points(gtv_pts)
+            .rgba(c.truth_color.0, c.truth_color.1, c.truth_color.2, c.truth_color.3);
+        draw.polyline()
+            .weight(1.5)
+            .points(pred_pts)
+            .rgba(c.pred_color.0, c.pred_color.1, c.pred_color.2, c.pred_color.3);
+    }
     draw.to_frame(app, &frame).unwrap();
 }
 

@@ -5,6 +5,7 @@ use super::fmcw_helper;
 use super::map_io;
 use super::structs::*;
 use super::color::EditorColor;
+use super::error_plot::ErrorPlotter;
 
 const BOUNDARIES: [(f32, f32); 4] = [(-600.0, -450.), (600., -450.), (600., 450.), (-600., 450.)];
 const BOUNDARY_IDS: [i8; 4] = [3, 0, 0, -3];
@@ -16,6 +17,7 @@ pub struct Model {
     pub plot_config: PlotConfig,
     pub wctrl: WindowCtrl,
     pub wtrans: WindowTransform,
+    pub err_plot: ErrorPlotter,
     pub pose: Point3,
     pub velo: Point3,
     pub pid: Point3,
@@ -48,6 +50,7 @@ impl Model {
                 config.screen.sub_width as f32, config.screen.sub_height as f32, exit
             ),
             wtrans: WindowTransform::new(),
+            err_plot: ErrorPlotter::new(6, 100, 100),
             pose: pt3(0., 0., 0.),
             velo: pt3(0., 0., 0.),
             pid: pt3(config.robot.pid_kp, config.robot.pid_ki, config.robot.pid_kd),
