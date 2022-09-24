@@ -24,7 +24,9 @@
         "doppler_std": 1e-5,
         "sample_std": 0.02,
         "cut_off": 3e9,
+        "nl_c2": 0.005,
+        "nl_c3": 1e-8,
         "reset": true
     },
-    "map_path":"../maps/standard0.txt"
+    "map_path":"../maps/standard3.txt"
 }

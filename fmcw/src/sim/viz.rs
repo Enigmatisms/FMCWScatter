@@ -212,6 +212,6 @@ fn visualize_single_ray(draw: &Draw, range: f32, pose: &Point3, color: &[f32; 4]
     draw.line()
         .start(start_p)
         .end(end_p)
-        .weight(1.)
+        .weight(2.)
         .rgba(color[0], color[1], color[2], color[3]);
 }

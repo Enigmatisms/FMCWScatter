@@ -40,16 +40,24 @@ void ChirpGenerator<T>::generateSignalPoints(std::vector<T>& output, T sign, T d
     static std::default_random_engine engine(std::chrono::system_clock::now().time_since_epoch().count());
     std::normal_distribution<T> doppler_noise(0.0, doppler_noise_std);
     doppler_mv += doppler_noise(engine) * band_width;
-    auto sinusoid = [b_f = base_freq, B = band_width, t = edge_length, dt = sample_int, doppler_mv, s = sign](size_t sp_i) {
-        T now_t = dt * static_cast<T>(sp_i);
-        return sin((b_f + s * B / t * now_t + doppler_mv) * now_t);
+    auto sinusoid = [
+        b_f = base_freq, B = band_width, t = edge_length,
+        dt = sample_int, doppler_mv, s = sign, 
+        c2 = this->non_lin_coeffs[0],
+        c3 = this->non_lin_coeffs[1]
+    ](size_t sp_i) {
+        T sp_i_T = static_cast<T>(sp_i);
+        T now_t = dt * sp_i_T;
+        T t2 = sp_i_T * sp_i_T, t3 = sp_i_T * t2;
+        T non_lin_distort = t2 * c2 + t3 * c3;
+        return sin((b_f + s * B / t * now_t + doppler_mv + non_lin_distort) * now_t);
     };
     output.resize(total_len);
     std::generate(output.begin(), output.end(), [n = 0] () mutable {return n++;});
     std::transform(output.begin(), output.end(), output.begin(), sinusoid);
     if (perturb == true) {
         std::normal_distribution<T> sample_noise(0.0, sample_noise_std);
-        std::transform(output.begin(), output.end(), output.begin(), [&sample_noise, &engine](T val) {return val + sample_noise(engine);});
+        std::transform(output.begin(), output.end(), output.begin(), [&sample_noise](T val) {return val + sample_noise(engine);});
     }
 }
 
@@ -107,6 +115,6 @@ void simulateOnce(ChirpParams& p, float* spect, float& range, float& vel, float 
     float max_elem = *std::max_element(spectrum.begin(), spectrum.end());
     std::transform(spectrum.begin(), spectrum.end(), spectrum.begin(), [max_elem](float v) {return sqrtf(v / max_elem);});
     size_t sp_size = static_cast<int>(spectrum.size());
-    memcpy(spect, spectrum.data(), sp_size * sizeof(float));
+    std::copy_n(spectrum.data(), sp_size, spect);
 }
 }

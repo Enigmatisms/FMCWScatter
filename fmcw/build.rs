@@ -7,6 +7,7 @@ fn main() {
         .file("cpp/src/chirp_generator.cc")
         .file("cpp/src/range_finder.cc")
         .flag("-lpthread")
+        .flag("-fopenmp")
         .flag("-O3")
         .compile("libfmcw_helper.a");
     println!("cargo:rustc-flags=-l dylib=stdc++");

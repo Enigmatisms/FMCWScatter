@@ -71,31 +71,38 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
             ui.end_row();
 
             ui.label("Base freq: ");
-            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.base_f, 3e9..=5e9)).clicked();
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.base_f, 3e9..=5e9)).changed();
             ui.end_row();
             ui.label("Chirp time: ");
-            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.edge_len, 2e-6..=4e-6)).clicked();
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.edge_len, 2e-6..=4e-6)).changed();
             ui.end_row();
             ui.label("Band width: ");
-            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.band_w, 5e9..=1e10)).clicked();
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.band_w, 5e9..=1e10)).changed();
             ui.end_row();
             ui.label("Sample time: ");
-            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.sp_int, 3.33e-11..=5e-11)).clicked();
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.sp_int, 3.33e-11..=5e-11)).changed();
             ui.end_row();
             ui.label("ToF std: ");
-            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.tof_std, 2e-11..=3e-10)).clicked();
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.tof_std, 2e-11..=3e-10)).changed();
             ui.end_row();
             ui.label("Doppler std: ");
-            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.doppler_std, 1e-5..=1e-3)).clicked();
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.doppler_std, 1e-5..=1e-3)).changed();
+            ui.end_row();
+
+            ui.label("Nonlinear c2: ");
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.nl_c2, 0.0..=10.0)).changed();
+            ui.end_row();
+            ui.label("Nonlinear c3: ");
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.nl_c3, 0.0..=5e-5)).changed();
             ui.end_row();
 
             ui.label("Sample std: ");
-            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.sample_std, 0.001..=0.1)).clicked();
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.sample_std, 0.001..=0.1)).changed();
             ui.end_row();
             ui.label("LPF cutoff: ");
-            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.cut_off, 2e8..=2e10)).clicked();
+            fmcw_p.reset |= ui.add(egui::Slider::new(&mut fmcw_p.cut_off, 2e8..=2e10)).changed();
             ui.end_row();
-
+            
             ui.label("LiDAR color picker:");
             ui.color_edit_button_rgba_unmultiplied(&mut color.lidar_color);
             ui.end_row();

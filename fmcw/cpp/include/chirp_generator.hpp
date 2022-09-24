@@ -18,6 +18,8 @@ struct ChirpParams {
     float doppler_std;
     float sample_std;
     float cut_off;
+    float t2;           // coeff for t^2
+    float t3;           // coeff for t^3
     bool reset;
 };
 
@@ -40,6 +42,8 @@ public:
         tof_noise_std = p.tof_std;
         doppler_noise_std = p.doppler_std; 
         sample_noise_std = p.sample_std;
+        non_lin_coeffs[0] = p.t2;
+        non_lin_coeffs[1] = p.t3;
 
         total_len = static_cast<size_t>(edge_length / sample_int) + 1;
         pos_chirp.resize(total_len, 0.);
@@ -99,7 +103,10 @@ private:
     T tof_noise_std;        // noise of ToF (should be small)
     T doppler_noise_std;    // Doppler effect noise std
     T sample_noise_std;     // noise add to each time sample (gaussian std) (之后需要给此值赋值)
-    T wave_length = 1e-8;// wave length of LiDAR (1550 nm)
+    T wave_length = 1e-8;   // wave length of LiDAR (1550 nm)
+    T non_lin_coeffs[2];    // non-linear chirp freq coefficients
+    // ratio: non_lin_coeff[0] has an upper limit of 0.5 and lower bound: 0
+    // ratio: non_lin_coeff[1] has an upper limit of 5 * 10^-6 and lower bound: 0
 
     size_t total_len;
     std::vector<T> pos_chirp;
