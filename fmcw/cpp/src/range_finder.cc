@@ -28,6 +28,7 @@ struct Vec2 {
 };
 
 // p1 is starting point, p2 is ending point
+// 7 additions, 6 mults, 2 divs, 4 bool ops
 inline float getRange(const Vec2& pos, const Vec2& v_perp, const Vec2& p1, const Vec2& p2) {
     const Vec2& s2e = p2 - p1;
     const Vec2& obs_v = pos - p1;

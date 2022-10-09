@@ -67,6 +67,8 @@
         "variant": "cpp",
         "bit": "cpp",
         "any": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "*.cu": "cpp",
+        "*.cuh": "cpp"
     }
 }
