@@ -40,7 +40,7 @@ PathTracer::~PathTracer() {
 
 void PathTracer::next_intersections(int mesh_num, int aabb_num) {
     CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, ray_os_ptr, ray_num * sizeof(Vec2), cudaMemcpyHostToDevice));
-    CUDA_CHECK_RETURN(cudaMemcpyAsync(cu_ray_d, ray_d_ptr, ray_num * sizeof(float), cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_d, ray_d_ptr, ray_num * sizeof(float), cudaMemcpyHostToDevice));
 
     cudaStream_t streams[8];
     for (short i = 0; i < 8; i++)
@@ -49,12 +49,16 @@ void PathTracer::next_intersections(int mesh_num, int aabb_num) {
     size_t shared_mem_size = (ray_num << 2) + 48 + get_padded_len(aabb_num);
     size_t threads_along_x = get_padded_len(mesh_num);
     for (int i = 0; i < 8; i++) {
-        ray_trace_cuda_kernel<<<block_per_stream, dim3(threads_along_x, 8), shared_mem_size, streams[i]>>>();
+        ray_trace_cuda_kernel<<<block_per_stream, dim3(threads_along_x, 8), shared_mem_size, streams[i]>>>(
+            cu_ray_os, cu_ray_d, cu_ranges, cu_mesh_inds, i, mesh_num, aabb_num
+        );
     }
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
     for (int i = 0; i < 8; i++)
         cudaStreamDestroy(streams[i]);
-    // CUDA_CHECK_RETURN(cudaMemcpy(cu_intersects, intersect_ptr, ray_num * sizeof(Vec2), cudaMemcpyHostToDevice));
-    // CUDA_CHECK_RETURN(cudaMemcpyAsync(cu_ranges, ranges_ptr, ray_num * sizeof(float), cudaMemcpyHostToDevice));
-    // CUDA_CHECK_RETURN(cudaMemcpyAsync(cu_mesh_inds, mesh_inds_ptr, ray_num * sizeof(short), cudaMemcpyHostToDevice));
+    // TODO: is this kind of implementation good?
+    CUDA_CHECK_RETURN(cudaMemcpyAsync(intersect_ptr, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToHost));
+    CUDA_CHECK_RETURN(cudaMemcpyAsync(ranges_ptr, cu_ranges, ray_num * sizeof(float), cudaMemcpyDeviceToHost));
+    CUDA_CHECK_RETURN(cudaMemcpy(mesh_inds_ptr, cu_mesh_inds, ray_num * sizeof(short), cudaMemcpyDeviceToHost));
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 }

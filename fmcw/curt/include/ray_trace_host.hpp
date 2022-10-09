@@ -4,10 +4,6 @@
 #include "cuda_err_check.hpp"
 #include "ray_trace_kernel.hpp"
 
-// (de)allocate global memory for static scene (objects do not change over time)
-void static_scene_allocate(size_t ray_num);
-void static_scene_deallocate();
-
 template<typename T>
 auto get_deletor() {
     return [](T* ptr) {
@@ -21,6 +17,7 @@ using host_ptr = std::unique_ptr<T, decltype(get_deletor<T>())>;
 /**
  * @brief calculate next intersections given ray origin and ray direction
  * @note I don't want to use pointers since Rust has nothing to do with this function
+ * therefore PathTracer can not be linked to Rust program
  */
 void next_intersections(
     const std::vector<Vec2>& ray_os, const std::vector<float>& ray_d, 

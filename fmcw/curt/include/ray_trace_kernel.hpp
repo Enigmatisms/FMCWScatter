@@ -3,8 +3,6 @@
 #include <cuda_runtime.h>
 #include <device_functions.h>
 #include <device_launch_parameters.h>
-#define MAX_PNUM 1024
-#define NULL_HIT 255            // if nothing is hit (unbounded scenes), 255 is assumed, therefore, maximum number of obj is 255
 
 struct Vec2 {
     float x;
@@ -39,6 +37,9 @@ struct AABB {
     __host__ __device__ constexpr AABB(const Vec2& tl, const Vec2& br): tl(tl), br(br) {}
 };
 
+// Copy line segment data from host (Rust end)
+__host__ void static_scene_update(size_t line_seg_num);
+
 /**
  * input : point origin (Vec2 array), ray angles: float array
  * output1 : minimum depth (float (single value, since each block represent one single ray) should be converted back to int)
@@ -47,7 +48,8 @@ struct AABB {
  * @param depth is GLOBAL memory float array (for fast data copying)
  */
 __global__ void ray_trace_cuda_kernel(
-    const Vec2* const origins, const float* const ray_dir, float* const min_depths, int* const inds
+    const Vec2* const origins, const float* const ray_dir, 
+    float* const min_depths, short* const inds, int block_offset, int mesh_num, int aabb_num
 );
 
 // TODO: Diffusive reflection light ray direction sampler

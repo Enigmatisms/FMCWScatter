@@ -1,18 +1,30 @@
 #include <cstdio>
 #include <cmath>
 #include "ray_trace_kernel.hpp"
+#include "cuda_err_check.hpp"
+
+#define MAX_PNUM 1024
+#define NULL_HIT 255            // if nothing is hit (unbounded scenes), 255 is assumed, therefore, maximum number of obj is 255
 
 constexpr float PI = 3.14159265358979f;
 constexpr float PI_2 = PI / 2.;
 
-// TODO: These should be copied from CPU (memcpyFromSymbol)
-// TODO: re-evaluation of the constant memory consumed
-// Note that __constant__ is not big （65536 bytes）, total consumption(1024 -> 17408 bytes)： assume MAX_PNUM = 1024
-// There fore, MAX_PNUM can be set to 3072 (maximum) (Unfortunately, atomic function for short / char is absent)
+// Note that __constant__ is not big （65536 bytes）, total consumption(1024 -> 15360 bytes)： assume MAX_PNUM = 1024
+// There fore, MAX_PNUM can be set to 2048 (maximum, we make some space for possible future features)
 __constant__ Vec2 all_points[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
 __constant__ AABB aabbs[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
-__constant__ short obj_inds[MAX_PNUM];        // line segs -> obj (LUT) (material and media & AABB）(4096 bytes used)
+__constant__ short obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
 __constant__ char next_ids[MAX_PNUM];       // 1024 bytes used
+
+void static_scene_update(
+    const Vec2* const meshes, const AABB* const host_aabb, const short* const host_inds, 
+    const char* const host_nexts, size_t line_seg_num, size_t aabb_num
+) {
+    CUDA_CHECK_RETURN(cudaMemcpyToSymbol(all_points, meshes, sizeof(Vec2) * line_seg_num, 0, cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpyToSymbol(aabbs, host_aabb, sizeof(AABB) * aabb_num, 0, cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpyToSymbol(obj_inds, host_inds, sizeof(short) * line_seg_num, 0, cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpyToSymbol(next_ids, host_nexts, sizeof(char) * line_seg_num, 0, cudaMemcpyHostToDevice));
+}
 
 __forceinline__ __device__ void range_min(const float* const input, int start, int end, float& out, short& out_aux, const short* const aux = nullptr) {
     float min_depth = 9e5f;
@@ -73,18 +85,18 @@ __forceinline__ __device__ float ray_intersect(const Vec2& pos, const Vec2& v_pe
  * @note this is a global function, not where the host could call. Also, AABB will not make this algo faster (only lower the power consumption)
  */
 __global__ void ray_trace_cuda_kernel(
-    const Vec2* const origins, const float* const ray_dir, float* const min_depths, short* const inds, int mesh_num, int aabb_num
+    const Vec2* const origins, const float* const ray_dir, 
+    float* const min_depths, short* const inds, int block_offset, int mesh_num, int aabb_num
 ) {
     // mem consumption: (1) mesh_num * 4 bytes (for all ranges) (2) 8 * float (min ranges, stratified) -> 32 bytes 
     // (3) 8 * short -> 4 floats -> 16 bytes (4) AABB valid bools (1 bytes * num AABB) padding
-    // TODO: bool padding
-    // TODO: shared memory initialization
     extern __shared__ float shared_banks[];      
     bool* hit_flags = (bool*) &shared_banks[mesh_num + 12];
+    const int ray_id = blockIdx.x + gridDim.x * block_offset;
 
     const int mesh_id = threadIdx.x + threadIdx.y * blockDim.x;
-    const Vec2& ray_o = origins[blockIdx.x];
-    const float ray_angle = ray_dir[blockIdx.x];
+    const Vec2& ray_o = origins[ray_id];
+    const float ray_angle = ray_dir[ray_id];
     const float dx = cosf(ray_angle), dy = sinf(ray_angle);
     if (mesh_id < aabb_num) {       // first (aabb_num) threads should process AABB calculation, others remains idle
         // Bank conflict unresolvable (haven't found a very effective way)
@@ -111,7 +123,22 @@ __global__ void ray_trace_cuda_kernel(
     }
     __syncthreads();
     if (mesh_id == 0) {             // only one thread attend to the final output
-        range_min(local_min_depths, 0, blockDim.y, min_depths[blockIdx.x], inds[blockIdx.x], local_obj_inds);
+        range_min(local_min_depths, 0, blockDim.y, min_depths[ray_id], inds[ray_id], local_obj_inds);
     }
     __syncthreads();
+}
+
+// Diffusive reflection light ray direction sampler
+__global__ void diffusive_ref_sampler_kernel() {
+
+}
+
+// Glossy object (rough specular) reflection light ray direction sampler
+__global__ void glossy_ref_sampler_kernel() {
+
+}
+
+// Mirror-like object (pure specular - Dirac BRDF) reflection light ray direction sampler
+__global__ void specular_ref_sampler_kernel() {
+    
 }
