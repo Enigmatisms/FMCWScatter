@@ -69,6 +69,10 @@
         "any": "cpp",
         "regex": "cpp",
         "*.cu": "cpp",
-        "*.cuh": "cpp"
+        "*.cuh": "cpp",
+        "codecvt": "cpp",
+        "filesystem": "cpp",
+        "__nullptr": "cpp",
+        "__config": "cpp"
     }
 }

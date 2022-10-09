@@ -7,6 +7,7 @@
                 "/usr/include/eigen3/**",
                 "/usr/local/include/**",
                 "${workspaceFolder}/fmcw/cpp/include/**",
+                "${workspaceFolder}/fmcw/curt/include/**",
                 "/usr/local/cuda-11.6/include/**",
                 "/usr/local/cuda-11.6/targets/x86_64-linux/include/**",
                 "${workspaceFolder}/fmcw/cpp/thirdparty/**"

@@ -5,22 +5,27 @@
 constexpr float PI = 3.14159265358979f;
 constexpr float PI_2 = PI / 2.;
 
-__host__ int get_padded_len(int non_padded) {
-    return static_cast<int>(ceilf(static_cast<float>(non_padded) / 4.));
-}
+// TODO: These should be copied from CPU (memcpyFromSymbol)
+// TODO: re-evaluation of the constant memory consumed
+// Note that __constant__ is not big （65536 bytes）, total consumption(1024 -> 17408 bytes)： assume MAX_PNUM = 1024
+// There fore, MAX_PNUM can be set to 3072 (maximum) (Unfortunately, atomic function for short / char is absent)
+__constant__ Vec2 all_points[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
+__constant__ AABB aabbs[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
+__constant__ short obj_inds[MAX_PNUM];        // line segs -> obj (LUT) (material and media & AABB）(4096 bytes used)
+__constant__ char next_ids[MAX_PNUM];       // 1024 bytes used
 
-__forceinline__ __device__ void range_min(const float* const input, const uint8* const aux, int start, int end, float& out, uint8& out_aux) {
-    float min_depth = 1e6;
-    uint8 min_obj_ind = NULL_HIT;
+__forceinline__ __device__ void range_min(const float* const input, int start, int end, float& out, short& out_aux, const short* const aux = nullptr) {
+    float min_depth = 9e5f;
+    short min_mesh_ind = NULL_HIT;
     for (int i = start; i < end; i++) {
         float local_depth = input[i];
         if (local_depth < min_depth) {
             min_depth = local_depth;
-            min_obj_ind = aux[i];
+            min_mesh_ind = (aux == nullptr) ? i : aux[i];
         }
     }
     out = min_depth; 
-    out_aux = min_obj_ind; 
+    out_aux = min_mesh_ind; 
 } 
 
 /** 
@@ -50,7 +55,7 @@ __forceinline__ __device__ float ray_intersect(const Vec2& pos, const Vec2& v_pe
     const Vec2 s2e = p2 - p1;
     const Vec2 obs_v = pos - p1;
     const float D = v_perp.dot(s2e);
-    int result = 1e6;
+    float result = 1e6;
     if (D > 0.) {
         float alpha = v_perp.dot(obs_v) / D;
         if (alpha < 1. && alpha > 0.) {
@@ -68,15 +73,14 @@ __forceinline__ __device__ float ray_intersect(const Vec2& pos, const Vec2& v_pe
  * @note this is a global function, not where the host could call. Also, AABB will not make this algo faster (only lower the power consumption)
  */
 __global__ void ray_trace_cuda_kernel(
-    const Vec2* const origins, const float* const ray_dir, float* const min_depths, uint8* const inds
+    const Vec2* const origins, const float* const ray_dir, float* const min_depths, short* const inds, int mesh_num, int aabb_num
 ) {
-    // mem consumption: mesh_num * 4 bytes (all ranges) + (mesh_num * 1 bytes (all obj_inds) + first padding) + 
-    // + 32 bytes (8 floats for stratified comp) + 8 bytes (2 floats -> 8 uint8) + (AABB_NUM * 1 bytes + second padding)
-    // TODO: there are two paddings to be done: first for non-4-multiplier obj_inds, second for bool
+    // mem consumption: (1) mesh_num * 4 bytes (for all ranges) (2) 8 * float (min ranges, stratified) -> 32 bytes 
+    // (3) 8 * short -> 4 floats -> 16 bytes (4) AABB valid bools (1 bytes * num AABB) padding
+    // TODO: bool padding
     // TODO: shared memory initialization
     extern __shared__ float shared_banks[];      
-    uint8* min_obj_inds = (uint8*) &shared_banks[mesh_num];   
-    bool* hit_flags = (bool*) &shared_banks[mesh_num + padded_ind_floats + 10];
+    bool* hit_flags = (bool*) &shared_banks[mesh_num + 12];
 
     const int mesh_id = threadIdx.x + threadIdx.y * blockDim.x;
     const Vec2& ray_o = origins[blockIdx.x];
@@ -88,27 +92,26 @@ __global__ void ray_trace_cuda_kernel(
     }
     __syncthreads();
     if (mesh_id < mesh_num) {       // for the sake of mesh (line segment division), there might be more threads than needed
-        uint8 aabb_index = obj_inds[mesh_id];
+        short aabb_index = obj_inds[mesh_id];
         if (hit_flags[aabb_index] == true) {        // there will be no warp divergence, since the 'else' side is NOP
-            // store to shared_banks (atomic)
             const Vec2 v_perp(-dy, dx);
             const int next_id = next_ids[mesh_id];
             const int next_id_neg = int(next_ids[mesh_id] < 0);
             const int next_pt_id = next_id * next_id_neg + 1 - next_id_neg;
             shared_banks[mesh_id] = ray_intersect(ray_o, v_perp, all_points[mesh_id], all_points[mesh_id + next_pt_id]);
-            min_obj_inds[mesh_id] = aabb_index;
+            // as we use mesh indices, we don't have to store them in shared memory 
         }
     }
     __syncthreads();
-    float* local_min_depths = &shared_banks[mesh_num + padded_ind_floats];
-    uint8* local_obj_inds = (uint8*) &shared_banks[mesh_num + padded_ind_floats + 8];
+    float* local_min_depths = &shared_banks[mesh_num];
+    short* local_obj_inds = (short*) &shared_banks[mesh_num + 8];
     if (threadIdx.x == 0) {             // 8-thread parallel
         int max_bound = min(mesh_num, blockDim.x * (threadIdx.y + 1));
-        range_min(shared_banks, min_obj_inds, blockDim.x * threadIdx.y, max_bound, local_min_depths[mesh_id], local_obj_inds[mesh_id]);
+        range_min(shared_banks, blockDim.x * threadIdx.y, max_bound, local_min_depths[mesh_id], local_obj_inds[mesh_id]);
     }
     __syncthreads();
     if (mesh_id == 0) {             // only one thread attend to the final output
-        range_min(local_min_depths, local_obj_inds, 0, blockDim.y, min_depths[blockIdx.x], inds[blockIdx.x]);
+        range_min(local_min_depths, 0, blockDim.y, min_depths[blockIdx.x], inds[blockIdx.x], local_obj_inds);
     }
     __syncthreads();
 }

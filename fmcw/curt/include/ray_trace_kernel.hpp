@@ -6,8 +6,6 @@
 #define MAX_PNUM 1024
 #define NULL_HIT 255            // if nothing is hit (unbounded scenes), 255 is assumed, therefore, maximum number of obj is 255
 
-using uint8 = unsigned char;
-
 struct Vec2 {
     float x;
     float y;
@@ -41,18 +39,6 @@ struct AABB {
     __host__ __device__ constexpr AABB(const Vec2& tl, const Vec2& br): tl(tl), br(br) {}
 };
 
-// 
-// TODO: These should be copied from CPU (memcpyFromSymbol)
-// Note that __constant__ is not big （65536 bytes）, total consumption(1024 -> 17408 bytes)： assume MAX_PNUM = 1024
-// There fore, MAX_PNUM can be set to 3072 (maximum) (Unfortunately, atomic function for short / char is absent)
-__constant__ Vec2 all_points[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
-__constant__ AABB aabbs[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
-__constant__ uint8 obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(4096 bytes used)
-__constant__ char next_ids[MAX_PNUM];       // 1024 bytes used
-int mesh_num;                               // number of line segments (set during const mem copying)
-int aabb_num;                               // number of aabb
-int padded_ind_floats;                       // number of bytes taken by indices after padding (to 4-byte floats)
-
 /**
  * input : point origin (Vec2 array), ray angles: float array
  * output1 : minimum depth (float (single value, since each block represent one single ray) should be converted back to int)
@@ -61,7 +47,7 @@ int padded_ind_floats;                       // number of bytes taken by indices
  * @param depth is GLOBAL memory float array (for fast data copying)
  */
 __global__ void ray_trace_cuda_kernel(
-    const Vec2* const origins, const float* const ray_dir, float* const min_depths, uint8* const inds
+    const Vec2* const origins, const float* const ray_dir, float* const min_depths, int* const inds
 );
 
 // TODO: Diffusive reflection light ray direction sampler
