@@ -1,16 +1,8 @@
 #include <cstdio>
 #include <cmath>
-#include "ray_trace_kernel.hpp"
-#include "cuda_err_check.hpp"
+#include "ray_trace_kernel.cuh"
+#include "cuda_err_check.cuh"
 
-#define MAX_PNUM 1024
-#define NULL_HIT 255            // if nothing is hit (unbounded scenes), 255 is assumed, therefore, maximum number of obj is 255
-
-constexpr float PI = 3.14159265358979f;
-constexpr float PI_2 = PI / 2.;
-
-// Note that __constant__ is not big （65536 bytes）, total consumption(1024 -> 15360 bytes)： assume MAX_PNUM = 1024
-// There fore, MAX_PNUM can be set to 2048 (maximum, we make some space for possible future features)
 __constant__ Vec2 all_points[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
 __constant__ AABB aabbs[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
 __constant__ short obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
@@ -24,6 +16,7 @@ void static_scene_update(
     CUDA_CHECK_RETURN(cudaMemcpyToSymbol(aabbs, host_aabb, sizeof(AABB) * aabb_num, 0, cudaMemcpyHostToDevice));
     CUDA_CHECK_RETURN(cudaMemcpyToSymbol(obj_inds, host_inds, sizeof(short) * line_seg_num, 0, cudaMemcpyHostToDevice));
     CUDA_CHECK_RETURN(cudaMemcpyToSymbol(next_ids, host_nexts, sizeof(char) * line_seg_num, 0, cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 }
 
 __forceinline__ __device__ void range_min(const float* const input, int start, int end, float& out, short& out_aux, const short* const aux = nullptr) {
@@ -87,7 +80,7 @@ __forceinline__ __device__ float ray_intersect(const Vec2& pos, const Vec2& v_pe
  * @note this is a global function, not where the host could call. Also, AABB will not make this algo faster (only lower the power consumption)
  */
 __global__ void ray_trace_cuda_kernel(
-    const Vec2* const origins, const float* const ray_dir, 
+    const Vec2* const origins, const Vec2* const ray_dir, 
     float* const min_depths, short* const inds, int block_offset, int mesh_num, int aabb_num
 ) {
     // mem consumption: (1) mesh_num * 4 bytes (for all ranges) (2) 8 * float (min ranges, stratified) -> 32 bytes 
@@ -98,8 +91,8 @@ __global__ void ray_trace_cuda_kernel(
 
     const int mesh_id = threadIdx.x + threadIdx.y * blockDim.x;
     const Vec2& ray_o = origins[ray_id];
-    const float ray_angle = ray_dir[ray_id];
-    const float dx = cosf(ray_angle), dy = sinf(ray_angle);
+    const Vec2& ray_angle = ray_dir[ray_id];
+    const float dx = ray_angle.x, dy = ray_angle.y;
     if (mesh_id < aabb_num) {       // first (aabb_num) threads should process AABB calculation, others remains idle
         // Bank conflict unresolvable (haven't found a very effective way)
         hit_flags[mesh_id] = aabb_intersected(ray_o, dx, dy, mesh_id);
@@ -128,24 +121,4 @@ __global__ void ray_trace_cuda_kernel(
         range_min(local_min_depths, 0, blockDim.y, min_depths[ray_id], inds[ray_id], local_obj_inds);
     }
     __syncthreads();
-}
-
-// Diffusive reflection light ray direction sampler
-__global__ void diffusive_ref_sampler_kernel() {
-    
-}
-
-// Glossy object (rough specular) reflection light ray direction sampler
-__global__ void glossy_ref_sampler_kernel() {
-
-}
-
-// Mirror-like object (pure specular - Dirac BRDF) reflection light ray direction sampler
-__global__ void specular_ref_sampler_kernel() {
-    
-}
-
-// Frensel reflection (can be reflected or refracted)
-__global__ void frensel_eff_sampler_kernel() {
-
 }
