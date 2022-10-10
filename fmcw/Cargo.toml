@@ -24,6 +24,6 @@ cc = "1.0"
 name="sim"
 path="src/bin/sim.rs"
 
-# [[bin]]
-# name="edit"
-# path="src/bin/editor.rs"
+[[bin]]
+name="ref_test"
+path="src/bin/refract_test.rs"

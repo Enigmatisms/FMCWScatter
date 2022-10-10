@@ -33,14 +33,15 @@ inline float getRange(const Vec2& pos, const Vec2& v_perp, const Vec2& p1, const
     const Vec2& s2e = p2 - p1;
     const Vec2& obs_v = pos - p1;
     float D = v_perp.dot(s2e);
-    if (D < 0.) {
-        return -1e-3;
-    }
     float alpha = v_perp.dot(obs_v) / D;
     if (alpha >= 1. || alpha <= 0.) {
         return -1e-3;
     }
-    return (-s2e.y * obs_v.x + s2e.x * obs_v.y) / D;
+    float result = (-s2e.y * obs_v.x + s2e.x * obs_v.y) / D;
+    if (result > 0.) {
+        return result;
+    }
+    return -1e-3;
 }
 
 // Rust API, therefore we can not use std::vector but pointer

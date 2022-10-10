@@ -47,14 +47,14 @@ __forceinline__ __device__ void range_min(const float* const input, int start, i
  */
 __device__ bool aabb_intersected(const Vec2& const ray_o, float dx, float dy, int aabb_id) {
     const AABB& aabb = aabbs[aabb_id];
-    bool result = false, dx_valid = fabs(dx) > 1e-4f, dy_valid = fabs(dy) > 1e-4f;
+    bool result = false, dx_valid = fabs(dx) > 2e-5f, dy_valid = fabs(dy) > 2e-5f;
     bool x_singular_valid = (ray_o.x < aabb.tl.x && ray_o.x > aabb.br.x);     // valid condition when dx is too small
     bool y_singular_valid = (ray_o.y < aabb.tl.y && ray_o.y > aabb.br.y);     // valid condition when dy is too small
     if (dx_valid && dy_valid) {        // there might be warp divergence (hard to resolve)
         const float enter_xt = (aabb.br.x - ray_o.x) / dx, enter_yt = (aabb.br.y - ray_o.y) / dy;
         const float exit_xt = (aabb.tl.x - ray_o.x) / dx, exit_yt = (aabb.tl.y - ray_o.y) / dy;
         const float enter_t = fmax(enter_xt, enter_yt), exit_t = fmin(exit_xt, exit_yt);
-        bool back_cull = ((enter_xt < 0.f && exit_xt < 0.f) || (exit_xt < 0.f && exit_yt < 0.f));       // either pair of (in, out) being both neg, culled.
+        bool back_cull = ((enter_xt < 0.f && exit_xt < 0.f) || (enter_yt < 0.f && exit_yt < 0.f));       // either pair of (in, out) being both neg, culled.
         result = (!back_cull) & (enter_t < exit_t);     // not back-culled and enter_t is smaller
     }
     result |= ((!dx_valid) & x_singular_valid);         // if x is not valid (false, ! -> true), then use x_singular_valid
@@ -68,10 +68,12 @@ __forceinline__ __device__ float ray_intersect(const Vec2& pos, const Vec2& v_pe
     const Vec2 obs_v = pos - p1;
     const float D = v_perp.dot(s2e);
     float result = 1e6;
-    if (D > 0.) {
+    if (fabs(D) > 5e-5) {
         float alpha = v_perp.dot(obs_v) / D;
         if (alpha < 1. && alpha > 0.) {
-            result = (-s2e.y * obs_v.x + s2e.x * obs_v.y) / D;
+            float tmp = (-s2e.y * obs_v.x + s2e.x * obs_v.y) / D;
+            float flag = float(tmp > 0.);
+            result = tmp * flag + 1e6 * (1. - flag);
         }
     }
     return result;
@@ -130,7 +132,7 @@ __global__ void ray_trace_cuda_kernel(
 
 // Diffusive reflection light ray direction sampler
 __global__ void diffusive_ref_sampler_kernel() {
-
+    
 }
 
 // Glossy object (rough specular) reflection light ray direction sampler
@@ -141,4 +143,9 @@ __global__ void glossy_ref_sampler_kernel() {
 // Mirror-like object (pure specular - Dirac BRDF) reflection light ray direction sampler
 __global__ void specular_ref_sampler_kernel() {
     
+}
+
+// Frensel reflection (can be reflected or refracted)
+__global__ void frensel_eff_sampler_kernel() {
+
 }
