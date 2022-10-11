@@ -23,6 +23,10 @@ struct Vec2 {
     __host__ __device__ float dot(const Vec2& p) const {
         return x * p.x + y * p.y;
     }
+
+    __host__ __device__ float norm() const {
+        return sqrtf(x * x + y * y);
+    }
 };
 
 struct Vec3 {
@@ -50,8 +54,36 @@ struct AABB {
     __host__ __device__ constexpr AABB(const Vec2& tl, const Vec2& br): tl(tl), br(br) {}
 };
 
+// Media and Material for objects
+enum class Material: uint8_t {
+    DIFFUSE = 0,
+    GLOSSY = 1,
+    SPECULAR = 2,
+    REFRACTIVE = 3
+};
+
+// object-managing struct
+struct ObjInfo {
+    Material type;              // size is uint8
+    uint8_t reserved[3];
+    float ref_index;
+    float u_a;                  // when material is not semi-transparent, u_a is the absorption coeff upon reflection
+    float u_s;                  // scattering coeff
+    float p_c;                  // when material is not semi-transparent, p_c is the coefficient of phase function
+    float f_reserved[3];        // non-AABB part totaling 8 floats
+    AABB aabb;
+};
+
 __forceinline__ __host__ __device__ Vec2 rotate_unit_vec(const Vec2& input, float angle) {
     return input * cosf(angle)  - Vec2(-input.y, input.x) * sinf(angle);
+}
+
+__forceinline__ __host__ __device__ Vec2 rotate_unit_vec(Vec2&& input, float angle) {
+    return input * cosf(angle)  - Vec2(-input.y, input.x) * sinf(angle);
+}
+
+__forceinline__ __host__ __device__ int get_padded_len(int non_padded, float k = 4.) {
+    return static_cast<int>(ceilf(static_cast<float>(non_padded) / k));
 }
 
 inline constexpr float PI = 3.14159265358979f;

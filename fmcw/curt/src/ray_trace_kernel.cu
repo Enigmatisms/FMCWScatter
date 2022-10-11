@@ -4,19 +4,36 @@
 #include "cuda_err_check.cuh"
 
 __constant__ Vec2 all_points[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
-__constant__ AABB aabbs[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
+__constant__ Vec2 all_normal[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
+__constant__ ObjInfo objects[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
 __constant__ short obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
 __constant__ char next_ids[MAX_PNUM];       // 1024 bytes used
 
 void static_scene_update(
-    const Vec2* const meshes, const AABB* const host_aabb, const short* const host_inds, 
-    const char* const host_nexts, size_t line_seg_num, size_t aabb_num
+    const Vec2* const meshes, const ObjInfo* const host_objs, const short* const host_inds, 
+    const char* const host_nexts, size_t line_seg_num, size_t obj_num
 ) {
     CUDA_CHECK_RETURN(cudaMemcpyToSymbol(all_points, meshes, sizeof(Vec2) * line_seg_num, 0, cudaMemcpyHostToDevice));
-    CUDA_CHECK_RETURN(cudaMemcpyToSymbol(aabbs, host_aabb, sizeof(AABB) * aabb_num, 0, cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpyToSymbol(objects, host_objs, sizeof(ObjInfo) * obj_num, 0, cudaMemcpyHostToDevice));
     CUDA_CHECK_RETURN(cudaMemcpyToSymbol(obj_inds, host_inds, sizeof(short) * line_seg_num, 0, cudaMemcpyHostToDevice));
     CUDA_CHECK_RETURN(cudaMemcpyToSymbol(next_ids, host_nexts, sizeof(char) * line_seg_num, 0, cudaMemcpyHostToDevice));
+    // TODO: Logical check needed
+    calculate_normal<<<4, get_padded_len(line_seg_num)>>>(static_cast<int>(line_seg_num));
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+}
+
+// block 4, thread: ceil(total_num / 4)
+__global__ void calculate_normal(int line_seg_num) {
+    const int pid = threadIdx.x + blockDim.x * blockIdx.x;
+    if (pid < line_seg_num) {
+        const int next_id = next_ids[pid];
+        const int next_neg = (next_id < 0);
+        const Vec2& p1 = all_points[pid];
+        const Vec2& p2 = all_points[next_id * next_neg + (1 - next_neg)];
+        const Vec2 dir_vec(p1.y - p2.y, p2.x - p1.x);             // perpendicular of (p2 - p1)
+        all_normal[pid] = dir_vec * (1. / dir_vec.norm());  // normalized, since I didn't implement operator/
+    }
+    __syncthreads();
 }
 
 __forceinline__ __device__ void range_min(const float* const input, int start, int end, float& out, short& out_aux, const short* const aux = nullptr) {
@@ -35,11 +52,11 @@ __forceinline__ __device__ void range_min(const float* const input, int start, i
 
 /** 
  * @brief calculate whether a line intersects aabb 
- * input: id of an aabb, ray origin and ray direction
+ * input: id of an object, ray origin and ray direction
  * detailed derivation of aabb intersection should be deduced
  */
-__device__ bool aabb_intersected(const Vec2& const ray_o, float dx, float dy, int aabb_id) {
-    const AABB& aabb = aabbs[aabb_id];
+__device__ bool aabb_intersected(const Vec2& const ray_o, float dx, float dy, int obj_id) {
+    const AABB& aabb = objects[obj_id].aabb;
     bool result = false, dx_valid = fabs(dx) > 2e-5f, dy_valid = fabs(dy) > 2e-5f;
     bool x_singular_valid = (ray_o.x < aabb.tl.x && ray_o.x > aabb.br.x);     // valid condition when dx is too small
     bool y_singular_valid = (ray_o.y < aabb.tl.y && ray_o.y > aabb.br.y);     // valid condition when dy is too small

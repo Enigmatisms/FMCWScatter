@@ -7,16 +7,23 @@
 
 #define MAX_PNUM 1024
 
-// Note that __constant__ is not big （65536 bytes）, total consumption(1024 -> 15360 bytes)： assume MAX_PNUM = 1024
+// There is not much room left if we want to go for 2048!
+// Note that __constant__ is not big （65536 bytes）, total consumption(1024 -> 25600 bytes)： assume MAX_PNUM = 1024
 // There fore, MAX_PNUM can be set to 2048 (maximum, we make some space for possible future features)
 // TODO: to enable this extern __constant__: set(CUDA_SEPARABLE_COMPILATION ON)
 extern __constant__ Vec2 all_points[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
-extern __constant__ AABB aabbs[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
+extern __constant__ Vec2 all_normal[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
+extern __constant__ ObjInfo objects[MAX_PNUM >> 3];     // 128 * 4 * 12 = 6144 bytes used (maximum allowed object number 255)
 extern __constant__ short obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
 extern __constant__ char next_ids[MAX_PNUM];       // 1024 bytes used
 
 // Copy line segment data from host (Rust end)
-__host__ void static_scene_update(size_t line_seg_num);
+__host__ void static_scene_update(
+    const Vec2* const meshes, const ObjInfo* const host_objs, const short* const host_inds, 
+    const char* const host_nexts, size_t line_seg_num, size_t obj_num
+);
+
+__global__ void calculate_normal(int line_seg_num);
 
 /**
  * input : point origin (Vec2 array), ray angles: float array

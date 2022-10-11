@@ -1,10 +1,6 @@
 #include "ray_trace_host.cuh"
 #include "cuda_err_check.cuh"
 
-int get_padded_len(int non_padded, float k = 4.) {
-    return static_cast<int>(ceilf(static_cast<float>(non_padded) / k));
-}
-
 PathTracer::PathTracer(size_t ray_num):
     ray_os(nullptr, get_deletor<Vec2>()), intersects(nullptr, get_deletor<Vec2>()),
     ray_d(nullptr, get_deletor<Vec2>()), ranges(nullptr, get_deletor<float>()),
