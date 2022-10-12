@@ -9,6 +9,28 @@ __forceinline__ __host__ __device__ Vec2 get_specular_dir(const Vec2& inc_dir, c
     return inc_dir - norm_dir * 2.f * proj;
 }
 
+__device__ bool snells_law(const Vec2& inci_dir, const Vec2& norm_dir, float n1_n2_ratio, bool same_dir, float& output) {
+    // if inci dir is of the same direction as the normal dir, it means that the ray is transmitting out from the media
+    n1_n2_ratio = 1. / n1_n2_ratio * same_dir + n1_n2_ratio * (1. - same_dir);
+    float sin_val = ((norm_dir.y * inci_dir.x - norm_dir.x * inci_dir.y) * n1_n2_ratio);
+    bool return_flag = abs(sin_val) <= 1.0;
+    if (return_flag == true) {
+        float result = asinf(sin_val);
+        output = (PI - result) * (1. - same_dir) + result * same_dir;
+    }
+}
+
+// frensel_equation for natural light (no polarization)
+__device__ float frensel_equation_natural(float n1, float n2, float cos_inc, float cos_ref) {
+    float n1cos_i = n1 * cos_inc;
+    float n2cos_i = n2 * cos_inc;
+    float n1cos_r = n1 * cos_ref;
+    float n2cos_r = n2 * cos_ref;
+    float rs = (n1cos_i - n2cos_r) / (n1cos_i + n2cos_r);
+    float rp = (n1cos_r - n2cos_i) / (n1cos_r + n2cos_i);
+    return 0.5 * (rs * rs + rp * rp);
+}
+
 /**
  * TODO: next steps 
  * 1. Implement sampler (4 kinds of sampler, initially)
@@ -60,6 +82,14 @@ __global__ void specular_ref_sampler_kernel(const short* const mesh_inds, Vec2* 
 }
 
 // Frensel reflection (can be reflected or refracted)
-__global__ void frensel_eff_sampler_kernel() {
+// Random number is needed here, for reflection and transmission can both happen
+__global__ void frensel_eff_sampler_kernel(const short* const mesh_inds, Vec2* ray_os, Vec2* ray_d, size_t rand_offset) {
+    const int ray_id = blockDim.x * blockIdx.x + threadIdx.x;
+    const short mesh_ind = mesh_inds[ray_id];
+    const short obj_ind = obj_inds[mesh_ind];
+    if (objects[obj_ind].type == Material::REFRACTIVE) {           // only specular objects will be processed here
+
+    }
+    __syncthreads();
     // CU_RAY_INFO should be used, since there is media interaction
 }
