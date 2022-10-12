@@ -34,5 +34,5 @@ __global__ void calculate_normal(int line_seg_num);
  */
 __global__ void ray_trace_cuda_kernel(
     const Vec2* const origins, const Vec2* const ray_dir, 
-    float* const min_depths, short* const inds, int block_offset, int mesh_num, int aabb_num
+    RayInfo* const ray_info, short* const inds, int block_offset, int mesh_num, int aabb_num
 );

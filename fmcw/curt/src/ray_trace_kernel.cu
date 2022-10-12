@@ -98,7 +98,7 @@ __forceinline__ __device__ float ray_intersect(const Vec2& pos, const Vec2& v_pe
  */
 __global__ void ray_trace_cuda_kernel(
     const Vec2* const origins, const Vec2* const ray_dir, 
-    float* const min_depths, short* const inds, int block_offset, int mesh_num, int aabb_num
+    RayInfo* const ray_info, short* const inds, int block_offset, int mesh_num, int aabb_num
 ) {
     // mem consumption: (1) mesh_num * 4 bytes (for all ranges) (2) 8 * float (min ranges, stratified) -> 32 bytes 
     // (3) 8 * short -> 4 floats -> 16 bytes (4) AABB valid bools (1 bytes * num AABB) padding
@@ -135,7 +135,9 @@ __global__ void ray_trace_cuda_kernel(
     }
     __syncthreads();
     if (mesh_id == 0) {             // only one thread attend to the final output
-        range_min(local_min_depths, 0, blockDim.y, min_depths[ray_id], inds[ray_id], local_obj_inds);
+        RayInfo& ray = ray_info[ray_id];
+        range_min(local_min_depths, 0, blockDim.y, ray.range_bound, inds[ray_id], local_obj_inds);
+        ray.acc_range += ray.range_bound;
     }
     __syncthreads();
 }

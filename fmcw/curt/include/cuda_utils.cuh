@@ -39,10 +39,15 @@ struct Vec3 {
 };
 
 struct RayInfo {
-    short prev_obj_id;
+    short prev_media_id;
 
-    __host__ __device__ constexpr RayInfo(): prev_obj_id(NULL_HIT) {}
-    __host__ __device__ constexpr RayInfo(short prev_id): prev_obj_id(prev_id) {}
+    // range bound is the maximum range of a ray (due to occluders), if in a scattering media
+    // we will sample by mean free path (which is often smaller than range bound)
+    float range_bound;    
+    float acc_range;  
+
+    __host__ __device__ constexpr RayInfo(): prev_media_id(NULL_HIT), range_bound(1e4), acc_range(0.) {}
+    __host__ __device__ constexpr RayInfo(short prev_id): prev_media_id(prev_id), range_bound(1e4), acc_range(0.) {}
 };
 
 // Axis-aligned bounding box for objects
@@ -72,14 +77,21 @@ struct ObjInfo {
     float p_c;                  // when material is not semi-transparent, p_c is the coefficient of phase function
     float f_reserved[3];        // non-AABB part totaling 8 floats
     AABB aabb;
+
+    __host__ __device__ constexpr ObjInfo(): 
+        type(Material::SPECULAR), reserved({0, 0, 0}), ref_index(1.), u_a(0.), u_s(0.), p_c(0.), aabb(AABB()), f_reserved({0, 0, 0}) {}
+
+    __host__ __device__ constexpr ObjInfo(Material mat, float ri, float u_a, float u_s, float p_c, const AABB& aabb): 
+        type(mat), reserved({0, 0, 0}), ref_index(ri), u_a(u_a), u_s(u_s), p_c(p_c), aabb(aabb), f_reserved({0, 0, 0}) {}
+
 };
 
 __forceinline__ __host__ __device__ Vec2 rotate_unit_vec(const Vec2& input, float angle) {
-    return input * cosf(angle)  - Vec2(-input.y, input.x) * sinf(angle);
+    return input * cosf(angle) - Vec2(-input.y, input.x) * sinf(angle);
 }
 
-__forceinline__ __host__ __device__ Vec2 rotate_unit_vec(Vec2&& input, float angle) {
-    return input * cosf(angle)  - Vec2(-input.y, input.x) * sinf(angle);
+__forceinline__ __host__ __device__ Vec2 rotate_unit_vec(Vec2&& input, float angle) {       // @overload for rvalue input
+    return input * cosf(angle) - Vec2(-input.y, input.x) * sinf(angle);
 }
 
 __forceinline__ __host__ __device__ int get_padded_len(int non_padded, float k = 4.) {
