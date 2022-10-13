@@ -52,8 +52,6 @@ __forceinline__ __device__ void range_min(const float* const input, int start, i
     out_aux = min_mesh_ind; 
 } 
 
-
-// TODO: AABB logic is not correct
 /** 
  * @brief calculate whether a line intersects aabb 
  * input: id of an object, ray origin and ray direction
@@ -65,11 +63,16 @@ __device__ bool aabb_intersected(const Vec2& const ray_o, float dx, float dy, in
     bool x_singular_valid = (ray_o.x < aabb.tr.x && ray_o.x > aabb.bl.x);     // valid condition when dx is too small
     bool y_singular_valid = (ray_o.y < aabb.tr.y && ray_o.y > aabb.bl.y);     // valid condition when dy is too small
     if (dx_valid && dy_valid) {        // there might be warp divergence (hard to resolve)
-        const float enter_xt = (aabb.bl.x - ray_o.x) / dx, enter_yt = (aabb.bl.y - ray_o.y) / dy;
-        const float exit_xt = (aabb.tr.x - ray_o.x) / dx, exit_yt = (aabb.tr.y - ray_o.y) / dy;
+        const bool dx_pos = dx > 0, dy_pos = dy > 0;
+        Vec2 act_tr(aabb.tr.x + aabb.bl.x, aabb.tr.y + aabb.bl.y);
+        Vec2 act_bl(aabb.bl.x * dx_pos + aabb.tr.x * (1 - dx_pos), aabb.bl.y * dy_pos + aabb.tr.y * dy_pos);
+        act_tr -= act_bl;
+
+        const float enter_xt = (act_bl.x - ray_o.x) / dx, enter_yt = (act_bl.y - ray_o.y) / dy;
+        const float exit_xt = (act_tr.x - ray_o.x) / dx, exit_yt = (act_tr.y - ray_o.y) / dy;
         const float enter_t = fmax(enter_xt, enter_yt), exit_t = fmin(exit_xt, exit_yt);
         // the following condition: or (maybe inside aabb) - and (must be outside and back-culled)
-        bool back_cull = ((enter_xt < 0.f && exit_xt < 0.f) && (enter_yt < 0.f && exit_yt < 0.f));       // either pair of (in, out) being both neg, culled.
+        bool back_cull = ((enter_xt < 0.f && exit_xt < 0.f) || (enter_yt < 0.f && exit_yt < 0.f));       // either pair of (in, out) being both neg, culled.
         result = (!back_cull) & (enter_t < exit_t);     // not back-culled and enter_t is smaller
     }
     result |= ((!dx_valid) & x_singular_valid);         // if x is not valid (false, ! -> true), then use x_singular_valid
@@ -113,8 +116,8 @@ __global__ void ray_trace_cuda_kernel(
 
     const int mesh_id = threadIdx.x + threadIdx.y * blockDim.x;
     const Vec2& ray_o = origins[ray_id];
-    const Vec2& ray_angle = ray_dir[ray_id];
-    const float dx = ray_angle.x, dy = ray_angle.y;
+    const Vec2& ray_d = ray_dir[ray_id];
+    const float dx = ray_d.x, dy = ray_d.y;
     if (mesh_id < aabb_num) {       // first (aabb_num) threads should process AABB calculation, others remains idle
         // Bank conflict unresolvable (haven't found a very effective way)
         hit_flags[mesh_id] = aabb_intersected(ray_o, dx, dy, mesh_id);

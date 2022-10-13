@@ -17,8 +17,9 @@ __device__ bool snells_law(const Vec2& inci_dir, const Vec2& norm_dir, float n1_
     bool return_flag = abs(sin_val) <= 1.0;
     if (return_flag == true) {
         float result = asinf(sin_val);
-        output = (PI - result) * (1. - same_dir) + result * same_dir;
+        output = (PI - result) * (1 - same_dir) + result * same_dir;
     }
+    return return_flag;
 }
 
 // frensel_equation for natural light (no polarization)
@@ -42,12 +43,12 @@ __device__ void diffusive_ref_sampler_kernel(const short* const mesh_inds, Vec2*
 }
 
 // Glossy object (rough specular) reflection light ray direction sampler
-__device__ void glossy_ref_sampler_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset, int ray_id, short mesh_ind) {
+__device__ void glossy_ref_sampler_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset, int ray_id, short mesh_ind, short obj_ind) {
     curandState rand_state;
     curand_init(ray_id, 0, rand_offset, &rand_state);
     const Vec2 reflected_dir = get_specular_dir(ray_d[ray_id], all_normal[mesh_ind]);
-    float sampled_angle = curand_normal(&rand_state) * 0.5;             // 3 sigma is 1.5, which is little bit smaller than pi/2
-    sampled_angle = fmax(fmin(sampled_angle, PI_2), -PI_2);             // clamp to (-pi/2, pi/2)
+    float sampled_angle = curand_normal(&rand_state) * fmin(0.5f, objects[obj_ind].u_s);             // 3 sigma is 1.5, which is little bit smaller than pi/2
+    sampled_angle = fmax(fmin(sampled_angle, PI_2 - 1e-4), -PI_2 + 1e-4);             // clamp to (-pi/2 + ɛ, pi/2 - ɛ)
     ray_d[ray_id] = rotate_unit_vec(reflected_dir, sampled_angle);      // glossy specular
 }
 
@@ -58,20 +59,16 @@ __forceinline__ __device__ void specular_ref_sampler_kernel(const short* const m
 
 // Frensel reflection (can be reflected or refracted)
 // Random number is needed here, for reflection and transmission can both happen
-__device__ bool frensel_eff_sampler_kernel(const short* const mesh_inds, const RayInfo* const ray_info, Vec2* ray_d, size_t rand_offset, int ray_id, short mesh_ind, short obj_ind) {
+__device__ void frensel_eff_sampler_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset, int ray_id, short mesh_ind, short obj_ind) {
     const Vec2& normal = all_normal[mesh_ind], &ray_dir = ray_d[ray_id];
-    const short prev_media_id = ray_info[ray_id].prev_media_id;
-    float prev_ref_index = 1.;
-    if (prev_media_id != NULL_HIT) {
-        prev_ref_index = objects[prev_media_id].ref_index;
-    }
     const float ref_index = objects[obj_ind].ref_index;
-
+    // TODO: substitude 1. to world RI 
     Vec2 refracted_dir, reflected_dir = get_specular_dir(ray_dir, normal);
     float angle = 0., reflection_ratio = 1.0;
-    const float cos_inc = ray_dir.dot(normal), ri_sum = prev_ref_index + ref_index;
+    const float cos_inc = ray_dir.dot(normal), ri_sum = 1. + ref_index;
     const bool same_dir = cos_inc > 0.;
-    const float n1 = prev_ref_index * (1. - same_dir) + ref_index * same_dir;
+    const float n1 = (1. - same_dir) + ref_index * same_dir;        // if same dir (out from media), n1 = ref_index, n2 = 1., else n1 = 1., n2 = ref_index
+    // We do not account for transmitting from one media directly into another media
     const bool result_valid = snells_law(ray_dir, normal, n1 / (ri_sum - n1), same_dir, angle);
     if (result_valid == true) {
         refracted_dir = rotate_unit_vec(normal, angle);
@@ -81,10 +78,9 @@ __device__ bool frensel_eff_sampler_kernel(const short* const mesh_inds, const R
     curand_init(ray_id, 0, rand_offset, &rand_state);
     const bool is_reflection = curand_uniform(&rand_state) <= reflection_ratio;   // random choise of refracted or reflected
     ray_d[ray_id] = is_reflection ? reflected_dir : refracted_dir;          // warp divergence might be more efficient in this case
-    return same_dir;
 }
 
-__global__ void non_scattering_interact_kernel(const short* const mesh_inds, RayInfo* const ray_info, Vec2* ray_d, size_t rand_offset) {
+__global__ void non_scattering_interact_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset) {
     const int ray_id = blockDim.x * blockIdx.x + threadIdx.x;
     const short mesh_ind = mesh_inds[ray_id];
     const short obj_ind = obj_inds[mesh_ind];
@@ -94,13 +90,13 @@ __global__ void non_scattering_interact_kernel(const short* const mesh_inds, Ray
           case Material::DIFFUSE: {
             diffusive_ref_sampler_kernel(mesh_inds, ray_d, rand_offset, ray_id, mesh_ind); break;
         } case Material::GLOSSY: {
-            glossy_ref_sampler_kernel(mesh_inds, ray_d, rand_offset, ray_id, mesh_ind); break;
+            glossy_ref_sampler_kernel(mesh_inds, ray_d, rand_offset, ray_id, mesh_ind, obj_ind); break;
         } case Material::SPECULAR: {
             specular_ref_sampler_kernel(mesh_inds, ray_d, ray_id, mesh_ind); break;
         } case Material::REFRACTIVE: {
             // TODO: not an ultimate solution for modifying prev_media_id (need to think of a better solution)
-            bool is_same_dir = frensel_eff_sampler_kernel(mesh_inds, ray_info, ray_d, rand_offset, ray_id, mesh_ind, obj_ind);
-            ray_info[ray_id].prev_media_id = obj_ind * (1 - is_same_dir) + NULL_HIT * is_same_dir; break;
+            // TODO: more things should be accounted for: world refraction index, transimitting from media 1 to media 2
+            frensel_eff_sampler_kernel(mesh_inds, ray_d, rand_offset, ray_id, mesh_ind, obj_ind); break;
         } default: {
             break;
         }

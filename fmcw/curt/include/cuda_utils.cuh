@@ -16,6 +16,11 @@ struct Vec2 {
         return Vec2(x - p.x, y - p.y);         // Return value optimized?
     }
 
+    __host__ __device__ Vec2 operator-=(const Vec2& p) {
+        x -= p.x;
+        y -= p.y;
+    }
+
     __host__ __device__ Vec2 operator*(float scaler) const {
         return Vec2(x * scaler, y * scaler);         // Return value optimized?
     }
@@ -73,7 +78,7 @@ struct ObjInfo {
     uint8_t reserved[3];
     float ref_index;
     float u_a;                  // when material is not semi-transparent, u_a is the absorption coeff upon reflection
-    float u_s;                  // scattering coeff
+    float u_s;                  // scattering coeff, when material is not semi-transparent, it is BRDF reflection concentration [0 means diffusive, >0.5 means specular]
     float p_c;                  // when material is not semi-transparent, p_c is the coefficient of phase function
     float f_reserved[3];        // non-AABB part totaling 8 floats
     AABB aabb;
@@ -96,6 +101,11 @@ __forceinline__ __host__ __device__ Vec2 rotate_unit_vec(Vec2&& input, float ang
 
 __forceinline__ __host__ __device__ int get_padded_len(int non_padded, float k = 4.) {
     return static_cast<int>(ceilf(static_cast<float>(non_padded) / k));
+}
+
+__forceinline__ __host__ __device__ int pad_bytes(int non_padded) {
+    int padding = non_padded % 4;
+    return non_padded + (padding > 0) * (4 - padding);
 }
 
 inline constexpr float PI = 3.14159265358979f;
