@@ -52,11 +52,11 @@ struct RayInfo {
 
 // Axis-aligned bounding box for objects
 struct AABB {
-    Vec2 tl;        // top left point
-    Vec2 br;        // bottom right point
+    Vec2 tr;        // top right point  (max x, max y)
+    Vec2 bl;        // bottom left point (min x, min y)
 
-    __host__ __device__ constexpr AABB(): tl(1., 1.), br(0., 0.) {}
-    __host__ __device__ constexpr AABB(const Vec2& tl, const Vec2& br): tl(tl), br(br) {}
+    __host__ __device__ constexpr AABB(): tr(1., 1.), bl(0., 0.) {}
+    __host__ __device__ constexpr AABB(const Vec2& tr, const Vec2& bl): tr(tr), bl(bl) {}
 };
 
 // Media and Material for objects

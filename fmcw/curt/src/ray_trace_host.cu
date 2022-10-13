@@ -34,6 +34,11 @@ PathTracer::~PathTracer() {
     CUDA_CHECK_RETURN(cudaFree(cu_intersects));
     CUDA_CHECK_RETURN(cudaFree(cu_mesh_inds));
     CUDA_CHECK_RETURN(cudaFree(cu_ray_info));
+
+    CUDA_CHECK_RETURN(cudaFree(cu_ray_info));
+    CUDA_CHECK_RETURN(cudaFree(cu_ray_info));
+    CUDA_CHECK_RETURN(cudaFree(cu_ray_info));
+
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 }
 

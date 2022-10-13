@@ -3,20 +3,21 @@
 #include "ray_trace_kernel.cuh"
 #include "cuda_err_check.cuh"
 
-__constant__ Vec2 all_points[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
-__constant__ Vec2 all_normal[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
-__constant__ ObjInfo objects[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
-__constant__ short obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
-__constant__ char next_ids[MAX_PNUM];       // 1024 bytes used
+// TODO: we can use dynamic allocation, but I am lazy
+__device__ Vec2 all_points[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
+__device__ Vec2 all_normal[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
+__device__ ObjInfo objects[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
+__device__ short obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
+__device__ char next_ids[MAX_PNUM];       // 1024 bytes used
 
 void static_scene_update(
     const Vec2* const meshes, const ObjInfo* const host_objs, const short* const host_inds, 
     const char* const host_nexts, size_t line_seg_num, size_t obj_num
 ) {
-    CUDA_CHECK_RETURN(cudaMemcpyToSymbol(all_points, meshes, sizeof(Vec2) * line_seg_num, 0, cudaMemcpyHostToDevice));
-    CUDA_CHECK_RETURN(cudaMemcpyToSymbol(objects, host_objs, sizeof(ObjInfo) * obj_num, 0, cudaMemcpyHostToDevice));
-    CUDA_CHECK_RETURN(cudaMemcpyToSymbol(obj_inds, host_inds, sizeof(short) * line_seg_num, 0, cudaMemcpyHostToDevice));
-    CUDA_CHECK_RETURN(cudaMemcpyToSymbol(next_ids, host_nexts, sizeof(char) * line_seg_num, 0, cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(all_points, meshes, sizeof(Vec2) * line_seg_num, cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(objects, host_objs, sizeof(ObjInfo) * obj_num, cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(obj_inds, host_inds, sizeof(short) * line_seg_num, cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(next_ids, host_nexts, sizeof(char) * line_seg_num, cudaMemcpyHostToDevice));
     // TODO: Logical check needed
     calculate_normal<<<4, get_padded_len(line_seg_num)>>>(static_cast<int>(line_seg_num));
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
@@ -39,17 +40,20 @@ __global__ void calculate_normal(int line_seg_num) {
 __forceinline__ __device__ void range_min(const float* const input, int start, int end, float& out, short& out_aux, const short* const aux = nullptr) {
     float min_depth = 9e5f;
     short min_mesh_ind = NULL_HIT;
+    const bool aux_null = (aux == nullptr);
     for (int i = start; i < end; i++) {
         float local_depth = input[i];
         if (local_depth < min_depth) {
             min_depth = local_depth;
-            min_mesh_ind = (aux == nullptr) ? i : aux[i];
+            min_mesh_ind = i * aux_null + (1 - aux_null) * aux[i];
         }
     }
     out = min_depth; 
     out_aux = min_mesh_ind; 
 } 
 
+
+// TODO: AABB logic is not correct
 /** 
  * @brief calculate whether a line intersects aabb 
  * input: id of an object, ray origin and ray direction
@@ -58,13 +62,14 @@ __forceinline__ __device__ void range_min(const float* const input, int start, i
 __device__ bool aabb_intersected(const Vec2& const ray_o, float dx, float dy, int obj_id) {
     const AABB& aabb = objects[obj_id].aabb;
     bool result = false, dx_valid = fabs(dx) > 2e-5f, dy_valid = fabs(dy) > 2e-5f;
-    bool x_singular_valid = (ray_o.x < aabb.tl.x && ray_o.x > aabb.br.x);     // valid condition when dx is too small
-    bool y_singular_valid = (ray_o.y < aabb.tl.y && ray_o.y > aabb.br.y);     // valid condition when dy is too small
+    bool x_singular_valid = (ray_o.x < aabb.tr.x && ray_o.x > aabb.bl.x);     // valid condition when dx is too small
+    bool y_singular_valid = (ray_o.y < aabb.tr.y && ray_o.y > aabb.bl.y);     // valid condition when dy is too small
     if (dx_valid && dy_valid) {        // there might be warp divergence (hard to resolve)
-        const float enter_xt = (aabb.br.x - ray_o.x) / dx, enter_yt = (aabb.br.y - ray_o.y) / dy;
-        const float exit_xt = (aabb.tl.x - ray_o.x) / dx, exit_yt = (aabb.tl.y - ray_o.y) / dy;
+        const float enter_xt = (aabb.bl.x - ray_o.x) / dx, enter_yt = (aabb.bl.y - ray_o.y) / dy;
+        const float exit_xt = (aabb.tr.x - ray_o.x) / dx, exit_yt = (aabb.tr.y - ray_o.y) / dy;
         const float enter_t = fmax(enter_xt, enter_yt), exit_t = fmin(exit_xt, exit_yt);
-        bool back_cull = ((enter_xt < 0.f && exit_xt < 0.f) || (enter_yt < 0.f && exit_yt < 0.f));       // either pair of (in, out) being both neg, culled.
+        // the following condition: or (maybe inside aabb) - and (must be outside and back-culled)
+        bool back_cull = ((enter_xt < 0.f && exit_xt < 0.f) && (enter_yt < 0.f && exit_yt < 0.f));       // either pair of (in, out) being both neg, culled.
         result = (!back_cull) & (enter_t < exit_t);     // not back-culled and enter_t is smaller
     }
     result |= ((!dx_valid) & x_singular_valid);         // if x is not valid (false, ! -> true), then use x_singular_valid

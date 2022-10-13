@@ -14,15 +14,11 @@ auto get_deletor() {
 template<typename T>
 using host_ptr = std::unique_ptr<T, decltype(get_deletor<T>())>;
 
-
-
 class PathTracer {
 public:
     PathTracer(size_t ray_num);
     ~PathTracer();
 public:
-    void static_scene_allocation(size_t ray_num);
-    
     /**
      * @brief calculate next intersections given ray origin and ray direction
      * @note I don't want to use pointers since Rust has nothing to do with this function
