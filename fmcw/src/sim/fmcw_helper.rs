@@ -1,19 +1,5 @@
-extern crate libc;
-use super::map_io::Chirp_param;
-
-#[repr(C)]
-pub struct Vec3_cpp {
-    pub x: libc::c_float,
-    pub y: libc::c_float,
-    pub z: libc::c_float
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct Vec2_cpp {
-    pub x: libc::c_float,
-    pub y: libc::c_float
-}
+use crate::utils::map_io::Chirp_param;
+use crate::utils::ffi_helper::{Vec2_cpp, Vec3_cpp};
 
 #[link(name = "fmcw_helper", kind = "static")]
 extern {

@@ -1,5 +1,4 @@
 use nannou::prelude::*;
-use super::fmcw_helper;
 
 pub struct WindowCtrl {
     pub window_id: WindowId,
@@ -20,17 +19,6 @@ pub struct WindowTransform {
     pub t_set: bool,
     pub r_set: bool,
     pub scale: f32
-}
-
-pub struct ChirpRelated {
-    pub flattened_pts: Vec<fmcw_helper::Vec2_cpp>,
-    pub nexts: Vec<i8>,
-    pub spect: Vec<libc::c_float>,
-    pub gt_r: f32,
-    pub pred_r: f32,
-    pub pred_v: f32,
-    pub map_resolution: f32,
-    pub max_len: usize
 }
 
 pub struct PlotConfig {
@@ -76,14 +64,6 @@ impl PlotConfig {
     pub fn new() -> Self {
         PlotConfig {
             draw_grid: false, grid_step: 100.0, grid_alpha: 0.01, reserve: 100.,
-        }
-    }
-}
-
-impl ChirpRelated {
-    pub fn new(f_pts: Vec<fmcw_helper::Vec2_cpp>, nexts: Vec<i8>) -> Self {
-        ChirpRelated {
-            flattened_pts: f_pts, nexts: nexts, spect: Vec::new(), gt_r: 0., pred_r: 0., pred_v: 0., map_resolution: 0.02, max_len: 4096
         }
     }
 }

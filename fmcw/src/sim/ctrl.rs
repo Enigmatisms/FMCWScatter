@@ -1,7 +1,7 @@
 use nannou::prelude::*;
 use super::model::Model;
-use super::utils;
-use super::plot;
+use crate::utils::utils;
+use crate::utils::plot;
 
 pub fn key_pressed(_app: &App, _model: &mut Model, _key: Key) {
     match _key {

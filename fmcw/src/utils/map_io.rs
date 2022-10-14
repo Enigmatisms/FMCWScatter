@@ -2,7 +2,7 @@ use std::fs;
 use serde_derive::{Deserialize, Serialize};
 use nannou::prelude::*;
 use std::io::{prelude::*, BufReader};
-use super::fmcw_helper::{Vec2_cpp, self};
+use super::ffi_helper::Vec2_cpp;
 
 pub type Mesh = Vec<Point2>;
 pub type Meshes = Vec<Mesh>;
@@ -76,7 +76,7 @@ pub fn parse_map_file<T>(filepath: T) -> Option<Meshes> where T: AsRef<std::path
     }
 }
 
-pub fn meshes_to_segments(meshes: &Meshes, segments: &mut Vec<fmcw_helper::Vec2_cpp>) -> usize {
+pub fn meshes_to_segments(meshes: &Meshes, segments: &mut Vec<Vec2_cpp>) -> usize {
     let mut ptr: usize = 0;
     for mesh in meshes.iter() {
         let first = &mesh[0];

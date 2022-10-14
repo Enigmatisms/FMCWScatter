@@ -5,9 +5,10 @@ use super::ctrl;
 use super::fmcw_helper;
 use super::model::Model;
 
-use super::plot;
-use super::utils;
-use super::map_io;
+use crate::utils::plot;
+use crate::utils::utils;
+use crate::utils::map_io;
+use crate::utils::ffi_helper::Vec3_cpp;
 
 const SPECTRUM_STR: &str = "Spectrum";
 const VELOCITY_STR: &str = "Velocity: white -- ground truth, yellow -- prediction";
@@ -75,7 +76,7 @@ pub fn update(_app: &App, model: &mut Model, _update: Update) {
             model.pose.z += model.pid.x * diff + model.pid.y * LOCAL_INT + model.pid.z * kd_val;
             model.pose.z = utils::good_angle(model.pose.z);
         }
-        let pose = fmcw_helper::Vec3_cpp {x:model.pose.x, y:model.pose.y, z:model.pose.z};
+        let pose = Vec3_cpp {x:model.pose.x, y:model.pose.y, z:model.pose.z};
         fmcw_helper::laserRangeFinder(
             &pose, model.chirp.flattened_pts.as_ptr(), model.chirp.nexts.as_ptr(), 
             model.chirp.nexts.len() as i32, &mut model.chirp.gt_r
