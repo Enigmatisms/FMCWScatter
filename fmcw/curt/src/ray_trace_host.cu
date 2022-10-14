@@ -62,8 +62,8 @@ void PathTracer::next_intersections(bool host_update, int mesh_num, int aabb_num
     for (short i = 0; i < 8; i++)
         cudaStreamCreateWithFlags(&streams[i],cudaStreamNonBlocking);
     const int cascade_num = ray_num / BLOCK_PER_STREAM;
-    size_t shared_mem_size = (ray_num << 2) + 48 + get_padded_len(aabb_num);
-    size_t threads_along_x = get_padded_len(mesh_num);
+    size_t shared_mem_size = (ray_num << 2) + 48 + pad_bytes(aabb_num);
+    size_t threads_along_x = get_padded_len(mesh_num, 8.);
     for (int i = 0; i < cascade_num; i++) {
         ray_trace_cuda_kernel<<<BLOCK_PER_STREAM, dim3(threads_along_x, 8), shared_mem_size, streams[i % 8]>>>(
             cu_ray_os, cu_ray_d, cu_ray_info, cu_mesh_inds, i, mesh_num, aabb_num
@@ -79,13 +79,13 @@ void PathTracer::next_intersections(bool host_update, int mesh_num, int aabb_num
 
 void PathTracer::sample_outgoing_rays() {
     static size_t random_offset = 0;
-    // update the intersections (ray origin updates from original starting point to intersection points) 
-    CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToDevice));  // assume this copy operation won't emit exception
     
     // within this function, there is nothing to be fetched multiple times, therefore shared memory is not needed.
     // update the ray direction, in order to get next intersection
-    non_scattering_interact_kernel<<< 8, (ray_num >> 3) >>>(cu_mesh_inds, cu_ray_info, cu_ray_d, random_offset);
+    non_scattering_interact_kernel<<< 8, (ray_num >> 3) >>>(cu_mesh_inds, cu_ray_d, random_offset);
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    // update the intersections (ray origin updates from original starting point to intersection points) 
+    CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToDevice));  // assume this copy operation won't emit exception
     random_offset += 1;
 }
 
