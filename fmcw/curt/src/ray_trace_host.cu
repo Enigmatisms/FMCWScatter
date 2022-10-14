@@ -1,4 +1,3 @@
-#include <algorithm>
 #include "ray_trace_host.cuh"
 #include "sampler_kernel.cuh"
 #include "cuda_err_check.cuh"
@@ -51,13 +50,7 @@ PathTracer::~PathTracer() {
 }
 
 // How to call the function from the host side? We should be able to access any data we need
-void PathTracer::next_intersections(bool host_update, int mesh_num, int aabb_num) {
-    if (host_update == true) {          // if not, it means that we are doing path tracing (otherwise it is the first path tracing given a new pose)
-        CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, ray_os_ptr, ray_num * sizeof(Vec2), cudaMemcpyHostToDevice));
-        CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_d, ray_d_ptr, ray_num * sizeof(Vec2), cudaMemcpyHostToDevice));
-        CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-    }
-    
+void PathTracer::next_intersections(int mesh_num, int aabb_num) {
     cudaStream_t streams[8];
     for (short i = 0; i < 8; i++)
         cudaStreamCreateWithFlags(&streams[i],cudaStreamNonBlocking);
@@ -66,7 +59,7 @@ void PathTracer::next_intersections(bool host_update, int mesh_num, int aabb_num
     size_t threads_along_x = get_padded_len(mesh_num, 8.);
     for (int i = 0; i < cascade_num; i++) {
         ray_trace_cuda_kernel<<<BLOCK_PER_STREAM, dim3(threads_along_x, 8), shared_mem_size, streams[i % 8]>>>(
-            cu_ray_os, cu_ray_d, cu_ray_info, cu_mesh_inds, i, mesh_num, aabb_num
+            cu_ray_os, cu_ray_d, cu_intersects, cu_ray_info, cu_mesh_inds, i, mesh_num, aabb_num
         );
     }
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
@@ -77,7 +70,23 @@ void PathTracer::next_intersections(bool host_update, int mesh_num, int aabb_num
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 }
 
-void PathTracer::sample_outgoing_rays() {
+void PathTracer::first_intersection(float origin_x, float origin_y, float dir_a, int mesh_num, int aabb_num) {
+    size_t shared_mem_size = (ray_num << 2) + 48 + pad_bytes(aabb_num);
+    size_t threads_along_x = get_padded_len(mesh_num, 8.);
+    const Vec2 ray_o(origin_x, origin_y);
+    const Vec2 ray_d(cosf(dir_a), sinf(dir_a));
+    CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, &ray_o, sizeof(Vec2), cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_d, &ray_d, sizeof(Vec2), cudaMemcpyHostToDevice));
+    ray_trace_cuda_kernel<<<1, dim3(threads_along_x, 8), shared_mem_size>>>(
+        cu_ray_os, cu_ray_d, cu_intersects, cu_ray_info, cu_mesh_inds, 0, mesh_num, aabb_num
+    );
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    copy_ray_poses_kernel<<<8, ray_num >> 3>>>(cu_intersects, cu_ray_os, cu_ray_d);
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    CUDA_CHECK_RETURN(cudaMemcpy(intersect_ptr, cu_ray_os, ray_num * sizeof(Vec2), cudaMemcpyDeviceToHost));
+}
+
+void PathTracer::sample_outgoing_rays(bool update_ray_o) {
     static size_t random_offset = 0;
     
     // within this function, there is nothing to be fetched multiple times, therefore shared memory is not needed.
@@ -85,23 +94,8 @@ void PathTracer::sample_outgoing_rays() {
     non_scattering_interact_kernel<<< 8, (ray_num >> 3) >>>(cu_mesh_inds, cu_ray_d, random_offset);
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
     // update the intersections (ray origin updates from original starting point to intersection points) 
-    CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToDevice));  // assume this copy operation won't emit exception
+    if (update_ray_o) {
+        CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToDevice));  // assume this copy operation won't emit exception
+    }
     random_offset += 1;
-}
-
-
-extern "C" {
-    // Whether this can reside here 
-    PathTracer path_tracer;
-
-    void setup_path_tracer(int ray_num) {
-        path_tracer.setup(static_cast<size_t>(ray_num));
-    }
-
-    // Get intersection of the light rays and update the ray directions and ray origins
-    void get_intersections_update(Vec2* const intersections, bool host_update, int mesh_num, int aabb_num) {
-        path_tracer.next_intersections(host_update, mesh_num, aabb_num);
-        std::copy_n(path_tracer.intersects.get(), path_tracer.get_ray_num(), intersections);
-        path_tracer.sample_outgoing_rays();
-    }
 }

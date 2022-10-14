@@ -1,6 +1,5 @@
 #include <curand.h>
 #include <curand_kernel.h>
-#include "cuda_utils.cuh"
 #include "ray_trace_kernel.cuh"
 #include "sampler_kernel.cuh"
 

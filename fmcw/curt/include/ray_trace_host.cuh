@@ -21,17 +21,21 @@ public:
     ~PathTracer();
 public:
     void setup(size_t ray_num);
+
+    /// @brief first intersection (for single ray) 
+    void first_intersection(float origin_x, float origin_y, float dir_a, int mesh_num, int aabb_num);
+
     /**
      * @brief calculate next intersections given ray origin and ray direction
      * @note I don't want to use pointers since Rust has nothing to do with this function
      * therefore PathTracer can not be linked to Rust program
      */
-    void next_intersections(bool host_update, int mesh_num, int aabb_num);
+    void next_intersections(int mesh_num, int aabb_num);
 
     /**
      * @brief after hitting the surface, the direction of the ray should be recomputed.
      */
-    void sample_outgoing_rays();
+    void sample_outgoing_rays(bool update_ray_o = true);
 
     size_t get_ray_num() const {
         return ray_num;

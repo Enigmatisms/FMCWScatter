@@ -6,7 +6,7 @@
 // TODO: we can use dynamic allocation, but I am lazy
 __device__ Vec2 all_points[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
 __device__ Vec2 all_normal[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
-__device__ ObjInfo objects[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
+__device__ ObjInfo objects[MAX_PNUM >> 3];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
 __device__ short obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
 __device__ char next_ids[MAX_PNUM];       // 1024 bytes used
 
@@ -92,7 +92,7 @@ __forceinline__ __device__ float ray_intersect(const Vec2& pos, const Vec2& v_pe
  * @note this is a global function, not where the host could call. Also, AABB will not make this algo faster (only lower the power consumption)
  */
 __global__ void ray_trace_cuda_kernel(
-    const Vec2* const origins, const Vec2* const ray_dir, 
+    const Vec2* const origins, const Vec2* const ray_dir, Vec2* const intersects,
     RayInfo* const ray_info, short* const inds, int block_offset, int mesh_num, int aabb_num
 ) {
     // mem consumption: (1) mesh_num * 4 bytes (for all ranges) (2) 8 * float (min ranges, stratified) -> 32 bytes 
@@ -131,26 +131,19 @@ __global__ void ray_trace_cuda_kernel(
     __syncthreads();
     if (mesh_id == 0) {             // only one thread attend to the final output
         RayInfo& ray = ray_info[ray_id];
-        range_min(local_min_depths, 0, blockDim.y, ray.range_bound, inds[ray_id], local_obj_inds);
-        ray.acc_range += ray.range_bound;
+        float range_bound = 0.;
+        range_min(local_min_depths, 0, blockDim.y, range_bound, inds[ray_id], local_obj_inds);
+        intersects[ray_id] = ray_o + ray_d * range_bound;
+        ray.range_bound = range_bound;  // avoid reading from global memory
+        ray.acc_range += range_bound;
     }
     __syncthreads();
 }
 
-
-extern "C" {
-    // TODO: can there be two or more extern "C" blocks in different translation units?
-    // TODO: To be substituted by texture memory in the future
-    void static_scene_update(
-        const Vec2* const meshes, const ObjInfo* const host_objs, const short* const host_inds, 
-        const char* const host_nexts, size_t line_seg_num, size_t obj_num
-    ) {
-        CUDA_CHECK_RETURN(cudaMemcpy(all_points, meshes, sizeof(Vec2) * line_seg_num, cudaMemcpyHostToDevice));
-        CUDA_CHECK_RETURN(cudaMemcpy(objects, host_objs, sizeof(ObjInfo) * obj_num, cudaMemcpyHostToDevice));
-        CUDA_CHECK_RETURN(cudaMemcpy(obj_inds, host_inds, sizeof(short) * line_seg_num, cudaMemcpyHostToDevice));
-        CUDA_CHECK_RETURN(cudaMemcpy(next_ids, host_nexts, sizeof(char) * line_seg_num, cudaMemcpyHostToDevice));
-        // TODO: Logical check needed
-        calculate_normal<<<4, get_padded_len(line_seg_num)>>>(static_cast<int>(line_seg_num));
-        CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+__global__ void copy_ray_poses_kernel(const Vec2* const intersections, Vec2* const ray_os, Vec2* const ray_ds) {
+    const int ray_id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (ray_id > 0) {
+        ray_os[ray_id] = intersections[0];
+        ray_ds[ray_id] = ray_ds[0];
     }
 }

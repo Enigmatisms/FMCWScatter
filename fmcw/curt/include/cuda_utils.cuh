@@ -16,6 +16,10 @@ struct Vec2 {
         return Vec2(x - p.x, y - p.y);         // Return value optimized?
     }
 
+    __host__ __device__ Vec2 operator+(const Vec2& p) const {
+        return Vec2(x + p.x, y + p.y);         // Return value optimized?
+    }
+
     __host__ __device__ Vec2 operator-=(const Vec2& p) {
         x -= p.x;
         y -= p.y;
