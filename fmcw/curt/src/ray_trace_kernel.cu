@@ -10,19 +10,6 @@ __device__ ObjInfo objects[MAX_PNUM >> 2];     // 256 * 4 * 4 = 4096 bytes used 
 __device__ short obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
 __device__ char next_ids[MAX_PNUM];       // 1024 bytes used
 
-void static_scene_update(
-    const Vec2* const meshes, const ObjInfo* const host_objs, const short* const host_inds, 
-    const char* const host_nexts, size_t line_seg_num, size_t obj_num
-) {
-    CUDA_CHECK_RETURN(cudaMemcpy(all_points, meshes, sizeof(Vec2) * line_seg_num, cudaMemcpyHostToDevice));
-    CUDA_CHECK_RETURN(cudaMemcpy(objects, host_objs, sizeof(ObjInfo) * obj_num, cudaMemcpyHostToDevice));
-    CUDA_CHECK_RETURN(cudaMemcpy(obj_inds, host_inds, sizeof(short) * line_seg_num, cudaMemcpyHostToDevice));
-    CUDA_CHECK_RETURN(cudaMemcpy(next_ids, host_nexts, sizeof(char) * line_seg_num, cudaMemcpyHostToDevice));
-    // TODO: Logical check needed
-    calculate_normal<<<4, get_padded_len(line_seg_num)>>>(static_cast<int>(line_seg_num));
-    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-}
-
 // block 4, thread: ceil(total_num / 4)
 __global__ void calculate_normal(int line_seg_num) {
     const int pid = threadIdx.x + blockDim.x * blockIdx.x;
@@ -145,4 +132,22 @@ __global__ void ray_trace_cuda_kernel(
         ray.acc_range += ray.range_bound;
     }
     __syncthreads();
+}
+
+
+extern "C" {
+    // TODO: can there be two or more extern "C" blocks in different translation units?
+    // TODO: To be substituted by texture memory in the future
+    void static_scene_update(
+        const Vec2* const meshes, const ObjInfo* const host_objs, const short* const host_inds, 
+        const char* const host_nexts, size_t line_seg_num, size_t obj_num
+    ) {
+        CUDA_CHECK_RETURN(cudaMemcpy(all_points, meshes, sizeof(Vec2) * line_seg_num, cudaMemcpyHostToDevice));
+        CUDA_CHECK_RETURN(cudaMemcpy(objects, host_objs, sizeof(ObjInfo) * obj_num, cudaMemcpyHostToDevice));
+        CUDA_CHECK_RETURN(cudaMemcpy(obj_inds, host_inds, sizeof(short) * line_seg_num, cudaMemcpyHostToDevice));
+        CUDA_CHECK_RETURN(cudaMemcpy(next_ids, host_nexts, sizeof(char) * line_seg_num, cudaMemcpyHostToDevice));
+        // TODO: Logical check needed
+        calculate_normal<<<4, get_padded_len(line_seg_num)>>>(static_cast<int>(line_seg_num));
+        CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    }
 }

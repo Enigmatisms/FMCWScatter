@@ -16,9 +16,11 @@ using host_ptr = std::unique_ptr<T, decltype(get_deletor<T>())>;
 
 class PathTracer {
 public:
+    PathTracer();
     PathTracer(size_t ray_num);
     ~PathTracer();
 public:
+    void setup(size_t ray_num);
     /**
      * @brief calculate next intersections given ray origin and ray direction
      * @note I don't want to use pointers since Rust has nothing to do with this function
@@ -30,6 +32,10 @@ public:
      * @brief after hitting the surface, the direction of the ray should be recomputed.
      */
     void sample_outgoing_rays();
+
+    size_t get_ray_num() const {
+        return ray_num;
+    }
 
     // TODO: the current ray_d used in GPU is Vec2 (should be converted from angle)
 private:

@@ -1,15 +1,23 @@
+#include <algorithm>
 #include "ray_trace_host.cuh"
 #include "sampler_kernel.cuh"
 #include "cuda_err_check.cuh"
 
 #define BLOCK_PER_STREAM 32
 
+PathTracer::PathTracer():
+    ray_os(nullptr, get_deletor<Vec2>()), intersects(nullptr, get_deletor<Vec2>()),
+    ray_d(nullptr, get_deletor<Vec2>()), ray_num(0) {}
+
 // CPU end: the last commit when range_ptr and mesh_inds are available is c4815846c
 PathTracer::PathTracer(size_t ray_num):
     ray_os(nullptr, get_deletor<Vec2>()), intersects(nullptr, get_deletor<Vec2>()),
     ray_d(nullptr, get_deletor<Vec2>()), ray_num(ray_num)
 {
-    // actually, ranges will be summed (in RayInfo)
+    setup(ray_num);
+}
+
+void PathTracer::setup(size_t ray_num) {
     CUDA_CHECK_RETURN(cudaMalloc((void **) &cu_ray_os, ray_num * sizeof(Vec2)));
     CUDA_CHECK_RETURN(cudaMalloc((void **) &cu_ray_d, ray_num * sizeof(Vec2)));
     CUDA_CHECK_RETURN(cudaMalloc((void **) &cu_intersects, ray_num * sizeof(Vec2)));
@@ -42,6 +50,7 @@ PathTracer::~PathTracer() {
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 }
 
+// How to call the function from the host side? We should be able to access any data we need
 void PathTracer::next_intersections(bool host_update, int mesh_num, int aabb_num) {
     if (host_update == true) {          // if not, it means that we are doing path tracing (otherwise it is the first path tracing given a new pose)
         CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, ray_os_ptr, ray_num * sizeof(Vec2), cudaMemcpyHostToDevice));
@@ -78,4 +87,21 @@ void PathTracer::sample_outgoing_rays() {
     non_scattering_interact_kernel<<< 8, (ray_num >> 3) >>>(cu_mesh_inds, cu_ray_info, cu_ray_d, random_offset);
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
     random_offset += 1;
+}
+
+
+extern "C" {
+    // Whether this can reside here 
+    PathTracer path_tracer;
+
+    void setup_path_tracer(int ray_num) {
+        path_tracer.setup(static_cast<size_t>(ray_num));
+    }
+
+    // Get intersection of the light rays and update the ray directions and ray origins
+    void get_intersections_update(Vec2* const intersections, bool host_update, int mesh_num, int aabb_num) {
+        path_tracer.next_intersections(host_update, mesh_num, aabb_num);
+        std::copy_n(path_tracer.intersects.get(), path_tracer.get_ray_num(), intersections);
+        path_tracer.sample_outgoing_rays();
+    }
 }

@@ -5,6 +5,22 @@
 
 extern "C" {
 
+class TestClass {
+public:
+    TestClass(int a, float b): a(a), b(b) {}
+public:
+    float test_func_1(float d) {
+        return d * b;
+    }
+
+    void test_func2() {
+        printf("fuck: %d\n", a);
+    }
+public:
+    int a;
+    float b;
+};
+
 struct Vec3 {
     float x;
     float y;

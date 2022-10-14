@@ -12,4 +12,8 @@ fn main() {
         .compile("libfmcw_helper.a");
     println!("cargo:rustc-flags=-l dylib=stdc++");
     println!("cargo:rustc-flags=-lgomp");
+
+    println!("FMCW cpp end compilation...");
+
+    // Maybe two Build instances solves the problem
 }

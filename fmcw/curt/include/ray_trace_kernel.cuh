@@ -15,13 +15,6 @@ extern __device__ ObjInfo objects[MAX_PNUM >> 3];     // 128 * 4 * 12 = 6144 byt
 extern __device__ short obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
 extern __device__ char next_ids[MAX_PNUM];       // 1024 bytes used
 
-// TODO: To be substituted by texture memory in the future
-// Copy line segment data from host (Rust end)
-__host__ void static_scene_update(
-    const Vec2* const meshes, const ObjInfo* const host_objs, const short* const host_inds, 
-    const char* const host_nexts, size_t line_seg_num, size_t obj_num
-);
-
 __global__ void calculate_normal(int line_seg_num);
 
 /**

@@ -114,7 +114,6 @@ void simulateOnce(ChirpParams& p, float* spect, float& range, float& vel, float 
     cg.solve(f_pos, f_neg, range, vel);
     float max_elem = *std::max_element(spectrum.begin(), spectrum.end());
     std::transform(spectrum.begin(), spectrum.end(), spectrum.begin(), [max_elem](float v) {return sqrtf(v / max_elem);});
-    size_t sp_size = static_cast<int>(spectrum.size());
-    std::copy_n(spectrum.data(), sp_size, spect);
+    std::copy_n(spectrum.data(), spectrum.size(), spect);
 }
 }
