@@ -5,12 +5,13 @@
 #include <device_launch_parameters.h>
 
 #define NULL_HIT 255            // if nothing is hit (unbounded scenes), 255 is assumed, therefore, maximum number of obj is 255
+#define MESH_NULL -1
 
 struct Vec2 {
     float x;
     float y;
-    __host__ __device__ constexpr Vec2(float x, float y): x(x), y(y) {}
-    __host__ __device__ constexpr Vec2(): x(0.), y(0.) {}
+    __host__ __device__ Vec2(float x, float y): x(x), y(y) {}
+    __host__ __device__ Vec2() {}
 
     __host__ __device__ Vec2 operator-(const Vec2& p) const {
         return Vec2(x - p.x, y - p.y);         // Return value optimized?
@@ -23,6 +24,11 @@ struct Vec2 {
     __host__ __device__ Vec2 operator-=(const Vec2& p) {
         x -= p.x;
         y -= p.y;
+    }
+
+    __host__ __device__ Vec2 operator*=(float v) {
+        x *= v;
+        y *= v;
     }
 
     __host__ __device__ Vec2 operator*(float scaler) const {
@@ -43,8 +49,8 @@ struct Vec3 {
     float y;
     float z;
 
-    __host__ __device__ constexpr Vec3(): x(0.), y(0.), z(0.) {}
-    __host__ __device__ constexpr Vec3(float x, float y, float z): x(x), y(y), z(z) {}
+    __host__ __device__ Vec3() {}
+    __host__ __device__ Vec3(float x, float y, float z): x(x), y(y), z(z) {}
 };
 
 struct RayInfo {
@@ -64,12 +70,14 @@ struct AABB {
     Vec2 tr;        // top right point  (max x, max y)
     Vec2 bl;        // bottom left point (min x, min y)
 
-    __host__ __device__ constexpr AABB(): tr(1., 1.), bl(0., 0.) {}
-    __host__ __device__ constexpr AABB(const Vec2& tr, const Vec2& bl): tr(tr), bl(bl) {}
+    __host__ __device__ AABB() {}
+    __host__ __device__ AABB(const Vec2& tr, const Vec2& bl): tr(tr), bl(bl) {}
 };
 
+using uint8 = unsigned char;
+
 // Media and Material for objects
-enum class Material: uint8_t {
+enum Material: uint8 {
     DIFFUSE = 0,
     GLOSSY = 1,
     SPECULAR = 2,
@@ -79,7 +87,7 @@ enum class Material: uint8_t {
 // object-managing struct
 struct ObjInfo {
     Material type;              // size is uint8
-    uint8_t reserved[3];
+    uint8 reserved[3];
     float ref_index;
     float u_a;                  // when material is not semi-transparent, u_a is the absorption coeff upon reflection
     float u_s;                  // scattering coeff, when material is not semi-transparent, it is BRDF reflection concentration [0 means diffusive, >0.5 means specular]
@@ -87,11 +95,10 @@ struct ObjInfo {
     float f_reserved[3];        // non-AABB part totaling 8 floats
     AABB aabb;
 
-    __host__ __device__ constexpr ObjInfo(): 
-        type(Material::SPECULAR), reserved({0, 0, 0}), ref_index(1.), u_a(0.), u_s(0.), p_c(0.), aabb(AABB()), f_reserved({0, 0, 0}) {}
+    __host__ __device__ ObjInfo() {}
 
-    __host__ __device__ constexpr ObjInfo(Material mat, float ri, float u_a, float u_s, float p_c, const AABB& aabb): 
-        type(mat), reserved({0, 0, 0}), ref_index(ri), u_a(u_a), u_s(u_s), p_c(p_c), aabb(aabb), f_reserved({0, 0, 0}) {}
+    __host__ __device__ ObjInfo(Material mat, float ri, float u_a, float u_s, float p_c, const AABB& aabb): 
+        type(mat), ref_index(ri), u_a(u_a), u_s(u_s), p_c(p_c), aabb(aabb) {}
 
 };
 
@@ -112,5 +119,5 @@ __forceinline__ __host__ __device__ int pad_bytes(int non_padded) {
     return non_padded + (padding > 0) * (4 - padding);
 }
 
-inline constexpr float PI = 3.14159265358979f;
-inline constexpr float PI_2 = PI / 2.;
+constexpr float PI = 3.14159265358979f;
+constexpr float PI_2 = PI / 2.;

@@ -28,5 +28,10 @@
         "nl_c3": 1e-8,
         "reset": true
     },
-    "map_path":"../maps/standard3.txt"
+    "tracer":
+    {
+        "bounces": 8,
+        "ray_num": 2048
+    },
+    "map_path":"../maps/standard6.txt"
 }

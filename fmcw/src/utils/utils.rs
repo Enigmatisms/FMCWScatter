@@ -2,7 +2,7 @@ use nannou::glam::{Mat2, Vec2, Vec3};
 use super::map_io;
 use super::ffi_helper::Vec2_cpp;
 
-const BOUNDARIES: [(f32, f32); 4] = [(-600.0, -450.), (600., -450.), (600., 450.), (-600., 450.)];
+pub const BOUNDARIES: [(f32, f32); 4] = [(-600.0, -450.), (600., -450.), (600., 450.), (-600., 450.)];
 const BOUNDARY_IDS: [i8; 4] = [3, 0, 0, -3];
 
 #[inline(always)]

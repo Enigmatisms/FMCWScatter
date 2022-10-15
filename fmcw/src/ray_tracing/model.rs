@@ -1,11 +1,13 @@
 use nannou::prelude::*;
 use nannou_egui::Egui;
 
+use super::rt_helper::static_scene_update; 
+
 use crate::utils::map_io;
 use crate::utils::color::EditorColor;
 use crate::utils::ffi_helper::Vec2_cpp;
 use crate::utils::world_objs::{ObjInfo, AABB};
-use crate::utils::utils::{initialize_cpp_end, ModelBasics};
+use crate::utils::utils::{initialize_cpp_end, ModelBasics, BOUNDARIES};
 use crate::utils::structs::{WindowCtrl, WindowTransform, PlotConfig, KeyStatus};
 
 pub fn get_aabb(meshes: &Vec<Vec<Point2>>) -> Vec<AABB> {
@@ -19,6 +21,14 @@ pub fn get_aabb(meshes: &Vec<Vec<Point2>>) -> Vec<AABB> {
         }
         results.push(AABB::new(pt_max, pt_min));
     }
+    let mut pt_max = pt2(-1e5, -1e5);
+    let mut pt_min = pt2(1e5, 1e5);
+    for pt in BOUNDARIES.iter() {
+        let _pt2 = pt2(pt.0, pt.1);
+        pt_max = pt_max.max(_pt2);
+        pt_min = pt_min.min(_pt2);
+    }
+    results.push(AABB::new(pt_max, pt_min));
     results
 }
 
@@ -27,6 +37,8 @@ pub fn get_mesh_obj_indices(meshes: &Vec<Vec<Point2>>) -> Vec<i16> {
     for (i, mesh) in meshes.iter().enumerate() {
         results.extend(vec![i as i16; mesh.len()]);
     }
+    // Boundaries (which are not inside meshes)
+    results.extend(vec![meshes.len() as i16; 4]);
     results
 }
 
@@ -34,13 +46,16 @@ pub struct RayTracingCtrl {
     pub flattened_pts: Vec<Vec2_cpp>,
     pub nexts: Vec<i8>,
     pub objects: Vec<ObjInfo>,
-    pub obj_inds: Vec<i16>
+    pub obj_inds: Vec<i16>,
+    pub ray_num: usize,
+    pub bounces: usize
 }
 
 impl RayTracingCtrl {
-    pub fn new(f_pts: Vec<Vec2_cpp>, nexts: Vec<i8>, raw_objs: map_io::ObjVecJson, aabbs: Vec<AABB>, inds: Vec<i16>) -> Self {
+    pub fn new(f_pts: Vec<Vec2_cpp>, nexts: Vec<i8>, raw_objs: map_io::ObjVecJson, aabbs: Vec<AABB>, inds: Vec<i16>, rnum: usize, bnum: usize) -> Self {
         RayTracingCtrl {
-            flattened_pts: f_pts, nexts: nexts, objects: RayTracingCtrl::load_from_raw(raw_objs, aabbs), obj_inds: inds
+            flattened_pts: f_pts, nexts: nexts, objects: RayTracingCtrl::load_from_raw(raw_objs, aabbs), 
+            obj_inds: inds, ray_num: rnum, bounces: bnum
         }
     }
 
@@ -60,6 +75,7 @@ pub struct Model {
     pub wctrl: WindowCtrl,
     pub wtrans: WindowTransform,
     pub rt_ctrl: RayTracingCtrl,
+    pub ray_paths: Vec<Vec<Point2>>,
     pub pose: Point3,
     pub velo: Point3,
     pub pid: Point3,
@@ -81,12 +97,11 @@ impl Model {
     -> Self {
         let mut flat_pts: Vec<Vec2_cpp> = Vec::new();
         let mut next_ids: Vec<i8> = Vec::new();
-        // TODO: Load from json config file (Object information)
         initialize_cpp_end(&meshes, &mut flat_pts, &mut next_ids);
         let aabbs = get_aabb(&meshes);
         let raw_objs = map_io::read_config::<map_io::ObjVecJson, _>("../maps/standard6_obj.json");
         let mesh_inds = get_mesh_obj_indices(&meshes);
-        Model {
+        let model = Model {
             map_points: meshes, 
             plot_config: PlotConfig::new(),
             wctrl: WindowCtrl::new(
@@ -94,7 +109,8 @@ impl Model {
                 config.screen.sub_width as f32, config.screen.sub_height as f32, exit
             ),
             wtrans: WindowTransform::new(),
-            rt_ctrl: RayTracingCtrl::new(flat_pts, next_ids, raw_objs, aabbs, mesh_inds),
+            rt_ctrl: RayTracingCtrl::new(flat_pts, next_ids, raw_objs, aabbs, mesh_inds, config.tracer.ray_num, config.tracer.bounces),
+            ray_paths: vec![vec![pt2(0., 0.); config.tracer.bounces + 1]; config.tracer.ray_num],
             pose: pt3(0., 0., 0.),
             velo: pt3(0., 0., 0.),
             pid: pt3(config.robot.pid_kp, config.robot.pid_ki, config.robot.pid_kd),
@@ -104,7 +120,23 @@ impl Model {
             egui: Egui::from_window(&app.window(window_id).unwrap()),
             key_stat: KeyStatus{ctrl_pressed: false},
             inside_gui: false,
+        };
+        unsafe {
+            static_scene_update(
+                model.rt_ctrl.flattened_pts.as_ptr(), model.rt_ctrl.objects.as_ptr(),
+                model.rt_ctrl.obj_inds.as_ptr(), model.rt_ctrl.nexts.as_ptr(), 
+                model.rt_ctrl.flattened_pts.len() as u64, model.rt_ctrl.objects.len() as u64
+            );
         }
+        model
+    }
+
+    pub fn get_mesh_num(&self) -> usize {
+        self.rt_ctrl.flattened_pts.len()
+    }
+
+    pub fn get_obj_num(&self) -> usize {
+        self.rt_ctrl.objects.len()
     }
 }
 

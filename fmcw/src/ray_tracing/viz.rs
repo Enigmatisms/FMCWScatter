@@ -1,16 +1,24 @@
 use nannou::prelude::*;
 
 use super::gui;
+use super::ctrl;
+use super::rt_helper;
 use super::model::Model;
 
 use crate::utils::plot;
 use crate::utils::utils;
 use crate::utils::map_io;
-use crate::utils::ffi_helper::Vec3_cpp;
-use crate::sim::ctrl;
+use crate::utils::ffi_helper::{Vec2_cpp, Vec3_cpp};
 
 fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event::WindowEvent) {
     model.egui.handle_raw_event(event);
+}
+
+fn copy_ray_path_points(points: &mut Vec<Vec<Point2>>, raw: &Vec<Vec2_cpp>, index: usize) {
+    let iter = std::iter::zip(raw.iter(), points.iter_mut());
+    for (pt, dst_vec) in iter {
+        dst_vec[index] = pt2(pt.x, pt.y);
+    }
 }
 
 pub fn model(app: &App) -> Model {
@@ -32,7 +40,9 @@ pub fn model(app: &App) -> Model {
     
     app.set_exit_on_escape(false);
     let meshes: map_io::Meshes = map_io::parse_map_file(config.map_path.as_str()).unwrap();
-
+    unsafe {
+        rt_helper::setup_path_tracer(config.tracer.ray_num as libc::c_int);
+    }
     Model::new(app, window_id, config, meshes)
 }
 
@@ -59,7 +69,22 @@ pub fn update(_app: &App, model: &mut Model, _update: Update) {
             model.pose.z = utils::good_angle(model.pose.z);
         }
         let pose = Vec3_cpp {x:model.pose.x, y:model.pose.y, z:model.pose.z};
-        // TODO: 
+        let mut intersections: Vec<Vec2_cpp> = vec![Vec2_cpp::default(); model.rt_ctrl.ray_num];
+        // Total 8 bounces, 9 end points (including the starting point)
+        for ray_path in model.ray_paths.iter_mut() {
+            ray_path[0] = pt2(pose.x, pose.y);
+        }
+        rt_helper::first_ray_intersections(
+            intersections.as_mut_ptr(), &pose, 
+            model.get_mesh_num() as libc::c_int, model.get_obj_num() as libc::c_int
+        );
+        copy_ray_path_points(&mut model.ray_paths, &intersections, 1);
+        for i in 2..=model.rt_ctrl.bounces {
+            rt_helper::get_intersections_update(
+                intersections.as_mut_ptr(), model.get_mesh_num() as libc::c_int, model.get_obj_num() as libc::c_int
+            );
+            copy_ray_path_points(&mut model.ray_paths, &intersections, i);
+        }
     }
 }
 
@@ -91,6 +116,8 @@ fn view(app: &App, model: &Model, frame: Frame) {
         .x(model.pose.x)
         .y(model.pose.y)
         .color(STEELBLUE);
+
+    draw_ray_path(&draw, &model.ray_paths, (1., 0., 0., 0.01));
     
     let start_pos = pt2(model.pose.x, model.pose.y);
     let dir = plot::local_mouse_position(app, &model.wtrans) - start_pos;
@@ -104,4 +131,18 @@ fn view(app: &App, model: &Model, frame: Frame) {
     // Write the result of our drawing to the window's frame.
     draw.to_frame(app, &frame).unwrap();
     model.egui.draw_to_frame(&frame).unwrap();
+}
+
+// The strength of ray (concentration of rays) is determined by alpha
+fn draw_ray_path(draw: &Draw, ray_paths: &Vec<Vec<Point2>>, base_color: (f32, f32, f32, f32)) {
+    for path in ray_paths.iter() {
+        let max_len = path.len();
+        let path_pts = (0..max_len).map(|i| {
+            path[i]
+        });
+        draw.polyline()
+            .weight(3.0)
+            .points(path_pts)
+            .rgba(base_color.0, base_color.1, base_color.2, base_color.3);
+    }
 }

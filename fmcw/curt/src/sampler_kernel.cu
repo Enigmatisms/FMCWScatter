@@ -1,13 +1,19 @@
 #include <curand.h>
 #include <curand_kernel.h>
-#include "ray_trace_kernel.cuh"
-#include "sampler_kernel.cuh"
+#include <iostream>
+#include "../include/ray_trace_kernel.cuh"
+#include "../include/sampler_kernel.cuh"
 
 // TODO: host function implementation and logical check this afternoon
 
 __forceinline__ __host__ __device__ Vec2 get_specular_dir(const Vec2& inc_dir, const Vec2& norm_dir) {
     const float proj = inc_dir.dot(norm_dir);
     return inc_dir - norm_dir * 2.f * proj;
+}
+
+__forceinline__ __device__ float sgn(float val) {
+    const bool pos = val >= 0.;
+    return -1. + 2 * pos;
 }
 
 __device__ bool snells_law(const Vec2& inci_dir, const Vec2& norm_dir, float n1_n2_ratio, bool same_dir, float& output) {
@@ -23,6 +29,7 @@ __device__ bool snells_law(const Vec2& inci_dir, const Vec2& norm_dir, float n1_
 
 // frensel_equation for natural light (no polarization)
 __device__ float frensel_equation_natural(float n1, float n2, float cos_inc, float cos_ref) {
+    
     float n1cos_i = n1 * cos_inc;
     float n2cos_i = n2 * cos_inc;
     float n1cos_r = n1 * cos_ref;
@@ -45,10 +52,16 @@ __device__ void diffusive_ref_sampler_kernel(const short* const mesh_inds, Vec2*
 __device__ void glossy_ref_sampler_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset, int ray_id, short mesh_ind, short obj_ind) {
     curandState rand_state;
     curand_init(ray_id, 0, rand_offset, &rand_state);
-    const Vec2 reflected_dir = get_specular_dir(ray_d[ray_id], all_normal[mesh_ind]);
+    Vec2 normal = all_normal[mesh_ind], reflected_dir = get_specular_dir(ray_d[ray_id], normal);
     float sampled_angle = curand_normal(&rand_state) * fmin(0.5f, objects[obj_ind].u_s);             // 3 sigma is 1.5, which is little bit smaller than pi/2
-    sampled_angle = fmax(fmin(sampled_angle, PI_2 - 1e-4), -PI_2 + 1e-4);             // clamp to (-pi/2 + ɛ, pi/2 - ɛ)
-    ray_d[ray_id] = rotate_unit_vec(reflected_dir, sampled_angle);      // glossy specular
+    sampled_angle = fmaxf(fminf(sampled_angle, PI_2 - 1e-4), -PI_2 + 1e-4);             // clamp to (-pi/2 + ɛ, pi/2 - ɛ)
+    Vec2 output_vec = rotate_unit_vec(reflected_dir, sampled_angle);
+    const float sign = sgn(normal.dot(ray_d[ray_id]));
+    normal *= sign;
+    if (output_vec.dot(normal) >= 0.) {
+        output_vec = reflected_dir;
+    }
+    ray_d[ray_id] = output_vec;      // glossy specular
 }
 
 // Mirror-like object (pure specular - Dirac BRDF) reflection light ray direction sampler
@@ -85,6 +98,7 @@ __global__ void non_scattering_interact_kernel(const short* const mesh_inds, Vec
     const short obj_ind = obj_inds[mesh_ind];
     // There is bound to be warp divergence (inevitable, or rather say, preferred)
     const Material obj_type = objects[obj_ind].type;
+    // specular_ref_sampler_kernel(mesh_inds, ray_d, ray_id, mesh_ind);
     switch (obj_type) {
           case Material::DIFFUSE: {
             diffusive_ref_sampler_kernel(mesh_inds, ray_d, rand_offset, ray_id, mesh_ind); break;

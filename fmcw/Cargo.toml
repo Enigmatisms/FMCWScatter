@@ -27,3 +27,7 @@ path="src/bin/sim.rs"
 [[bin]]
 name="ref_test"
 path="src/bin/refract_test.rs"
+
+[[bin]]
+name="rt"
+path="src/bin/rt_viz.rs"

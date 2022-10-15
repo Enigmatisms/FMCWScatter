@@ -8,9 +8,6 @@ use crate::utils::color::EditorColor;
 use crate::utils::ffi_helper::Vec2_cpp;
 use crate::utils::utils::{initialize_cpp_end, ModelBasics};
 
-const BOUNDARIES: [(f32, f32); 4] = [(-600.0, -450.), (600., -450.), (600., 450.), (-600., 450.)];
-const BOUNDARY_IDS: [i8; 4] = [3, 0, 0, -3];
-
 pub struct ChirpRelated {
     pub flattened_pts: Vec<Vec2_cpp>,
     pub nexts: Vec<i8>,
@@ -29,7 +26,6 @@ impl ChirpRelated {
         }
     }
 }
-
 
 pub struct Model {
     pub map_points: Vec<Vec<Point2>>,

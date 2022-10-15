@@ -15,5 +15,17 @@ fn main() {
 
     println!("FMCW cpp end compilation...");
 
+    cc::Build::new()
+        .cuda(true)
+        .flag("-std=c++14")
+        .flag("-lcuda")
+        .flag("-lcudart")
+        .flag("-gencode")
+        .flag("arch=compute_86,code=sm_86")
+        .file("curt/src/extern_func.cu")
+        .file("curt/src/ray_trace_host.cu")
+        .file("curt/src/ray_trace_kernel.cu")
+        .file("curt/src/sampler_kernel.cu")
+        .compile("librt_helper.a");
     // Maybe two Build instances solves the problem
 }

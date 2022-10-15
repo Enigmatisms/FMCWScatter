@@ -18,6 +18,10 @@ impl Vec2_cpp {
     pub fn new(x: libc::c_float, y: libc::c_float) -> Self {
         Vec2_cpp { x: x, y: y }
     }
+
+    pub fn default() -> Self {
+        Vec2_cpp { x: 0., y: 0. }
+    }
 }
 
 impl Vec3_cpp {

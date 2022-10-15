@@ -40,6 +40,12 @@ pub struct ScreenConfig {
     pub sub_height: u32
 }
 
+#[derive(Deserialize, Serialize, Clone)]
+pub struct TracerConfig {
+    pub bounces: usize,
+    pub ray_num: usize
+}
+
 #[repr(C)]
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Chirp_param {
@@ -61,6 +67,7 @@ pub struct Config {
     pub robot: ScannerConfig,
     pub screen: ScreenConfig,
     pub fmcw_p: Chirp_param,
+    pub tracer: TracerConfig,
     pub map_path: String
 }
 
@@ -79,8 +86,8 @@ pub fn parse_map_file<T>(filepath: T) -> Option<Meshes> where T: AsRef<std::path
                     break;
                 } else {
                     mesh.push(pt2(
-                        str1.parse::<f32>().unwrap() - 600.,
-                        str2.parse::<f32>().unwrap() - 450.
+                        str1.parse::<f32>().unwrap(),
+                        str2.parse::<f32>().unwrap()
                     ));
                 }
             }

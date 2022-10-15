@@ -1,8 +1,8 @@
-#include "ray_trace_host.cuh"
-#include "sampler_kernel.cuh"
-#include "cuda_err_check.cuh"
+#include "../include/ray_trace_host.cuh"
+#include "../include/sampler_kernel.cuh"
+#include "../include/cuda_err_check.cuh"
 
-#define BLOCK_PER_STREAM 32
+#define BLOCK_PER_STREAM 8
 
 PathTracer::PathTracer():
     ray_os(nullptr, get_deletor<Vec2>()), intersects(nullptr, get_deletor<Vec2>()),
@@ -33,6 +33,7 @@ void PathTracer::setup(size_t ray_num) {
     ray_os.reset(ray_os_ptr);
     ray_d.reset(ray_d_ptr);
     intersects.reset(intersect_ptr);
+    this->ray_num = ray_num;
 }
 
 PathTracer::~PathTracer() {
@@ -54,7 +55,7 @@ void PathTracer::next_intersections(int mesh_num, int aabb_num) {
     cudaStream_t streams[8];
     for (short i = 0; i < 8; i++)
         cudaStreamCreateWithFlags(&streams[i],cudaStreamNonBlocking);
-    const int cascade_num = ray_num / BLOCK_PER_STREAM;
+    const int cascade_num = std::max(1, int(ray_num) / BLOCK_PER_STREAM);
     size_t shared_mem_size = (ray_num << 2) + 48 + pad_bytes(aabb_num);
     size_t threads_along_x = get_padded_len(mesh_num, 8.);
     for (int i = 0; i < cascade_num; i++) {
@@ -71,6 +72,7 @@ void PathTracer::next_intersections(int mesh_num, int aabb_num) {
 }
 
 void PathTracer::first_intersection(float origin_x, float origin_y, float dir_a, int mesh_num, int aabb_num) {
+    CUDA_CHECK_RETURN(cudaMemset(cu_mesh_inds, 0xff, ray_num * sizeof(short)));
     size_t shared_mem_size = (ray_num << 2) + 48 + pad_bytes(aabb_num);
     size_t threads_along_x = get_padded_len(mesh_num, 8.);
     const Vec2 ray_o(origin_x, origin_y);
@@ -81,9 +83,9 @@ void PathTracer::first_intersection(float origin_x, float origin_y, float dir_a,
         cu_ray_os, cu_ray_d, cu_intersects, cu_ray_info, cu_mesh_inds, 0, mesh_num, aabb_num
     );
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-    copy_ray_poses_kernel<<<8, ray_num >> 3>>>(cu_intersects, cu_ray_os, cu_ray_d);
-    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    copy_ray_poses_kernel<<<8, max(ray_num >> 3, 1lu)>>>(cu_intersects, cu_mesh_inds, cu_ray_info, cu_ray_os, cu_ray_d);
     CUDA_CHECK_RETURN(cudaMemcpy(intersect_ptr, cu_ray_os, ray_num * sizeof(Vec2), cudaMemcpyDeviceToHost));
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 }
 
 void PathTracer::sample_outgoing_rays(bool update_ray_o) {
@@ -91,11 +93,12 @@ void PathTracer::sample_outgoing_rays(bool update_ray_o) {
     
     // within this function, there is nothing to be fetched multiple times, therefore shared memory is not needed.
     // update the ray direction, in order to get next intersection
-    non_scattering_interact_kernel<<< 8, (ray_num >> 3) >>>(cu_mesh_inds, cu_ray_d, random_offset);
+    non_scattering_interact_kernel<<< 8, max(ray_num >> 3, 1lu) >>>(cu_mesh_inds, cu_ray_d, random_offset);
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
     // update the intersections (ray origin updates from original starting point to intersection points) 
     if (update_ray_o) {
         CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToDevice));  // assume this copy operation won't emit exception
     }
-    random_offset += 1;
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    // random_offset += 1;
 }

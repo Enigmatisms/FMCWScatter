@@ -29,4 +29,4 @@ __global__ void ray_trace_cuda_kernel(
     RayInfo* const ray_info, short* const inds, int block_offset, int mesh_num, int aabb_num
 );
 
-__global__ void copy_ray_poses_kernel(const Vec2* const intersections, Vec2* const ray_os, Vec2* const ray_ds);
+__global__ void copy_ray_poses_kernel(const Vec2* const intersections, short* const inds, RayInfo* const ray_info, Vec2* const ray_os, Vec2* const ray_ds);

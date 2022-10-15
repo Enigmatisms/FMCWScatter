@@ -1,23 +1,23 @@
 #include <cstdio>
 #include <cmath>
-#include "ray_trace_kernel.cuh"
-#include "cuda_err_check.cuh"
+#include "../include/ray_trace_kernel.cuh"
+#include "../include/cuda_err_check.cuh"
 
 // TODO: we can use dynamic allocation, but I am lazy
-__device__ Vec2 all_points[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
-__device__ Vec2 all_normal[MAX_PNUM];     // 1024 * 2 * 4 = 8192 bytes used
-__device__ ObjInfo objects[MAX_PNUM >> 3];     // 256 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
-__device__ short obj_inds[MAX_PNUM];      // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
-__device__ char next_ids[MAX_PNUM];       // 1024 bytes used
+__device__ Vec2 all_points[MAX_PNUM];       // 1024 * 2 * 4 = 8192 bytes used
+__device__ Vec2 all_normal[MAX_PNUM];       // 1024 * 2 * 4 = 8192 bytes used
+__device__ ObjInfo objects[MAX_PNUM >> 3];        // 128 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
+__device__ short obj_inds[MAX_PNUM];        // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
+__device__ char next_ids[MAX_PNUM];         // 1024 bytes used
 
 // block 4, thread: ceil(total_num / 4)
 __global__ void calculate_normal(int line_seg_num) {
     const int pid = threadIdx.x + blockDim.x * blockIdx.x;
     if (pid < line_seg_num) {
-        const int next_id = next_ids[pid];
-        const int next_neg = (next_id < 0);
+        const short next_id = next_ids[pid];
+        const bool next_neg = (next_id < 0);
         const Vec2& p1 = all_points[pid];
-        const Vec2& p2 = all_points[next_id * next_neg + (1 - next_neg)];
+        const Vec2& p2 = all_points[pid + next_id * next_neg + (1 - next_neg)];
         const Vec2 dir_vec(p1.y - p2.y, p2.x - p1.x);             // perpendicular of (p2 - p1)
         all_normal[pid] = dir_vec * (1. / dir_vec.norm());  // normalized, since I didn't implement operator/
     }
@@ -30,7 +30,7 @@ __forceinline__ __device__ void range_min(const float* const input, int start, i
     const bool aux_null = (aux == nullptr);
     for (int i = start; i < end; i++) {
         float local_depth = input[i];
-        if (local_depth < min_depth) {
+        if (local_depth > 0. && local_depth < min_depth) {
             min_depth = local_depth;
             min_mesh_ind = i * aux_null + (1 - aux_null) * aux[i];
         }
@@ -44,7 +44,7 @@ __forceinline__ __device__ void range_min(const float* const input, int start, i
  * input: id of an object, ray origin and ray direction
  * detailed derivation of aabb intersection should be deduced
  */
-__device__ bool aabb_intersected(const Vec2& const ray_o, float dx, float dy, int obj_id) {
+__device__ bool aabb_intersected(const Vec2& ray_o, float dx, float dy, int obj_id) {
     const AABB& aabb = objects[obj_id].aabb;
     bool result = false, dx_valid = fabs(dx) > 2e-5f, dy_valid = fabs(dy) > 2e-5f;
     bool x_singular_valid = (ray_o.x < aabb.tr.x && ray_o.x > aabb.bl.x);     // valid condition when dx is too small
@@ -77,8 +77,8 @@ __forceinline__ __device__ float ray_intersect(const Vec2& pos, const Vec2& v_pe
         float alpha = v_perp.dot(obs_v) / D;
         if (alpha < 1. && alpha > 0.) {
             float tmp = (-s2e.y * obs_v.x + s2e.x * obs_v.y) / D;
-            float flag = float(tmp > 0.);
-            result = tmp * flag + 1e6 * (1. - flag);
+            bool flag = tmp > 0.;
+            result = tmp * flag + 1e6 * (1 - flag);
         }
     }
     return result;
@@ -107,12 +107,13 @@ __global__ void ray_trace_cuda_kernel(
     const float dx = ray_d.x, dy = ray_d.y;
     if (mesh_id < aabb_num) {       // first (aabb_num) threads should process AABB calculation, others remains idle
         // Bank conflict unresolvable (haven't found a very effective way)
-        hit_flags[mesh_id] = aabb_intersected(ray_o, dx, dy, mesh_id);
+        hit_flags[mesh_id] = 1;
     }
     __syncthreads();
     if (mesh_id < mesh_num) {       // for the sake of mesh (line segment division), there might be more threads than needed
         short aabb_index = obj_inds[mesh_id];
-        if (hit_flags[aabb_index] == true) {        // there will be no warp divergence, since the 'else' side is NOP
+        shared_banks[mesh_id] = -0.1f;
+        if (hit_flags[aabb_index] == true && mesh_id != inds[ray_id]) {        // there will be no warp divergence, since the 'else' side is NOP
             const Vec2 v_perp(-dy, dx);
             const int next_id = next_ids[mesh_id];
             const int next_id_neg = int(next_ids[mesh_id] < 0);
@@ -126,12 +127,13 @@ __global__ void ray_trace_cuda_kernel(
     short* local_obj_inds = (short*) &shared_banks[mesh_num + 8];
     if (threadIdx.x == 0) {             // 8-thread parallel
         int max_bound = min(mesh_num, blockDim.x * (threadIdx.y + 1));
-        range_min(shared_banks, blockDim.x * threadIdx.y, max_bound, local_min_depths[mesh_id], local_obj_inds[mesh_id]);
+        range_min(shared_banks, blockDim.x * threadIdx.y, max_bound, local_min_depths[threadIdx.y], local_obj_inds[threadIdx.y]);
     }
     __syncthreads();
     if (mesh_id == 0) {             // only one thread attend to the final output
         RayInfo& ray = ray_info[ray_id];
         float range_bound = 0.;
+        int prev_hit = inds[ray_id];
         range_min(local_min_depths, 0, blockDim.y, range_bound, inds[ray_id], local_obj_inds);
         intersects[ray_id] = ray_o + ray_d * range_bound;
         ray.range_bound = range_bound;  // avoid reading from global memory
@@ -140,10 +142,13 @@ __global__ void ray_trace_cuda_kernel(
     __syncthreads();
 }
 
-__global__ void copy_ray_poses_kernel(const Vec2* const intersections, Vec2* const ray_os, Vec2* const ray_ds) {
+__global__ void copy_ray_poses_kernel(const Vec2* const intersections, short* const inds, RayInfo* const ray_info, Vec2* const ray_os, Vec2* const ray_ds) {
     const int ray_id = threadIdx.x + blockIdx.x * blockDim.x;
+    ray_os[ray_id] = intersections[0];
     if (ray_id > 0) {
-        ray_os[ray_id] = intersections[0];
         ray_ds[ray_id] = ray_ds[0];
+        inds[ray_id] = inds[0];
+        ray_info[ray_id] = ray_info[0];
     }
+    __syncthreads();
 }

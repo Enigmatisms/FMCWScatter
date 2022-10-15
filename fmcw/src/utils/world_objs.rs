@@ -9,8 +9,8 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn new(tl: Point2, br: Point2) -> Self {
-        AABB{ tr: Vec2_cpp::new(tl.x, tl.y), bl: Vec2_cpp::new(br.x, br.y)}
+    pub fn new(tr: Point2, bl: Point2) -> Self {
+        AABB{ tr: Vec2_cpp::new(tr.x, tr.y), bl: Vec2_cpp::new(bl.x, bl.y)}
     }
 
     pub fn default() -> Self {
