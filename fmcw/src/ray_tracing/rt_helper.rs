@@ -1,5 +1,5 @@
 use crate::utils::ffi_helper::{Vec2_cpp, Vec3_cpp};
-use super::world_objs::ObjInfo;
+use crate::utils::world_objs::ObjInfo;
 
 #[link(name = "rt_helper", kind = "static")]
 extern {

@@ -1,6 +1,8 @@
 use nannou::prelude::*;
-use crate::utils::ffi_helper::Vec2_cpp;
+use super::ffi_helper::Vec2_cpp;
+use super::map_io::ObjInfoJson;
 
+#[repr(C)]
 pub struct AABB {
     pub tr: Vec2_cpp,        // top right point  (max x, max y)
     pub bl: Vec2_cpp,        // bottom left point (min x, min y)
@@ -16,6 +18,7 @@ impl AABB {
     }
 }
 
+#[repr(C)]
 pub struct ObjInfo {
     _type: libc::c_uchar,
     reserved: [libc::c_uchar; 3],
@@ -32,6 +35,13 @@ impl ObjInfo {
         ObjInfo {
             _type: _type, reserved: [0x00; 3], ref_index: ri, 
             u_a: ua, u_s: us, p_c: pc, f_reserved: [0.; 3], aabb: aabb
+        }
+    }
+
+    pub fn from_raw(obj: ObjInfoJson, aabb: AABB) -> Self {
+        ObjInfo {
+            _type: obj._type, reserved: [0x00; 3], ref_index: obj.ref_index,
+            u_a: obj.u_a, u_s: obj.u_s, p_c: obj.p_c, f_reserved: [0.; 3], aabb: aabb 
         }
     }
 

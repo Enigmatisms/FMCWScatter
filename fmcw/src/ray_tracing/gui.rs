@@ -4,8 +4,10 @@ use nannou_egui::{self, egui};
 use super::model::Model;
 use crate::utils::toggle::toggle;
 use crate::utils::plot::take_snapshot;
-use crate::utils::map_io::{read_config_rdf, load_map_file};
+use crate::utils::map_io::{read_config_rdf, load_map_file, read_config, ObjVecJson};
 use crate::utils::utils::{initialize_cpp_end, ModelBasics};
+use crate::utils::ffi_helper::Vec2_cpp;
+use super::model::{get_aabb, get_mesh_obj_indices, RayTracingCtrl};
 
 pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
     let Model {
@@ -19,6 +21,7 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
         ref mut velo_max,
         ref mut pid,
         ref mut initialized,
+        ref mut rt_ctrl,
         ..
     } = model;
     egui.set_elapsed_time(update.since_start);
@@ -90,7 +93,17 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
                 if ui.button("Load map file").clicked() {
                     let mut raw_points: Vec<Vec<Point2>> = Vec::new();
                     load_map_file(&mut raw_points);
-                    initialize_cpp_end(&raw_points, &mut chirp.flattened_pts, &mut chirp.nexts);      // re-intialize CUDA (ray tracer)
+
+                    let mut flat_pts: Vec<Vec2_cpp> = Vec::new();
+                    let mut next_ids: Vec<i8> = Vec::new();
+                    initialize_cpp_end(&raw_points, &mut flat_pts, &mut next_ids);
+                    let aabbs = get_aabb(&raw_points);
+                    let raw_objs = read_config::<ObjVecJson, _>("../maps/standard6_obj.json");
+                    let mesh_inds = get_mesh_obj_indices(&raw_points);
+                    rt_ctrl.objects = RayTracingCtrl::load_from_raw(raw_objs, aabbs);
+                    rt_ctrl.flattened_pts = flat_pts;
+                    rt_ctrl.nexts = next_ids;
+                    rt_ctrl.obj_inds = mesh_inds;
                     *map_points = raw_points;           // replacing map points
                     *initialized = false;               // should reset starting point
                 }

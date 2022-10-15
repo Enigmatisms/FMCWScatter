@@ -9,18 +9,8 @@ use crate::utils::map_io;
 use crate::utils::ffi_helper::Vec3_cpp;
 use crate::sim::ctrl;
 
-const SPECTRUM_STR: &str = "Spectrum";
-const VELOCITY_STR: &str = "Velocity: white -- ground truth, yellow -- prediction";
-const ERROR_STR: &str = "Average range error (m)";
-
 fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event::WindowEvent) {
     model.egui.handle_raw_event(event);
-}
-
-#[inline(always)]
-fn zero_padding(vec: &mut Vec<libc::c_float>, sp_int: f32, sp_time: f32) {
-    let raw_num: u32 = (sp_time / sp_int).log2().ceil() as u32;
-    vec.resize(2_usize.pow(raw_num), 0.);
 }
 
 pub fn model(app: &App) -> Model {

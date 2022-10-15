@@ -1,11 +1,27 @@
 use std::fs;
 use serde_derive::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
 use nannou::prelude::*;
 use std::io::{prelude::*, BufReader};
 use super::ffi_helper::Vec2_cpp;
 
 pub type Mesh = Vec<Point2>;
 pub type Meshes = Vec<Mesh>;
+
+// For loading and dumping from/to files, I don't want to load AABB from files currently
+#[derive(Deserialize, Serialize, Clone)]
+pub struct ObjInfoJson {
+    pub _type: u8,
+    pub ref_index: f32,
+    pub u_a: f32,
+    pub u_s: f32,
+    pub p_c: f32
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct ObjVecJson {
+    pub items: Vec<ObjInfoJson>,
+}
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct ScannerConfig {
@@ -98,15 +114,15 @@ pub fn read_config_rdf() -> Option<Config> {
         .set_directory(".")
         .pick_file();
     if let Some(path_res) = path {
-        return Some(read_config(path_res));
+        return Some(read_config::<Config, _>(path_res));
     }
     None
 }
 
-pub fn read_config<T>(file_path: T) -> Config where T: AsRef<std::path::Path> {
+pub fn read_config<RType: DeserializeOwned, PathType: AsRef<std::path::Path>>(file_path: PathType) -> RType {
     let file: fs::File = fs::File::open(file_path).ok().unwrap();
     let reader = BufReader::new(file);
-    let config: Config = serde_json::from_reader(reader).ok().unwrap();
+    let config: RType = serde_json::from_reader(reader).ok().unwrap();
     config
 }
 
