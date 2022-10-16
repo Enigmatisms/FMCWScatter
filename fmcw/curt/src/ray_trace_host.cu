@@ -100,5 +100,5 @@ void PathTracer::sample_outgoing_rays(bool update_ray_o) {
         CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToDevice));  // assume this copy operation won't emit exception
     }
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-    // random_offset += 1;
+    random_offset += 1;
 }

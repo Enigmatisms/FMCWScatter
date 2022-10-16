@@ -20,7 +20,7 @@ impl AABB {
 
 #[repr(C)]
 pub struct ObjInfo {
-    _type: libc::c_uchar,
+    pub _type: libc::c_uchar,
     reserved: [libc::c_uchar; 3],
     ref_index: libc::c_float,
     u_a: libc::c_float,

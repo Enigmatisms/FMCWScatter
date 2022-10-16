@@ -100,13 +100,20 @@ fn view(app: &App, model: &Model, frame: Frame) {
     }
     let (bg_r, bg_g, bg_b) = model.color.bg_color;
     draw.background().rgba(bg_r, bg_g, bg_b, 1.0);
-    let (r, g, b, a) = model.color.shape_color;
-    for mesh in model.map_points.iter() {
+    let (r, g, b, _) = model.color.shape_color;
+    for (id, mesh) in model.map_points.iter().enumerate() {
         let points = (0..mesh.len()).map(|i| {
             mesh[i]
         });
+        let (r, g, b) = match model.rt_ctrl.objects[id]._type {
+            0 => {model.color.scene.diffusive},
+            1 => {model.color.scene.glossy},
+            2 => {model.color.scene.specular},
+            3 => {model.color.scene.refractive},
+            _ => {(r, g, b)},
+        };
         draw.polygon()
-            .rgba(r, g, b, a)
+            .rgb(r, g, b)
             .points(points);
     }
 

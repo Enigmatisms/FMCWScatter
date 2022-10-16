@@ -4,8 +4,6 @@
 #include "../include/ray_trace_kernel.cuh"
 #include "../include/sampler_kernel.cuh"
 
-// TODO: host function implementation and logical check this afternoon
-
 __forceinline__ __host__ __device__ Vec2 get_specular_dir(const Vec2& inc_dir, const Vec2& norm_dir) {
     const float proj = inc_dir.dot(norm_dir);
     return inc_dir - norm_dir * 2.f * proj;
@@ -43,7 +41,7 @@ __device__ float frensel_equation_natural(float n1, float n2, float cos_inc, flo
 // block separation (to 8 blocks, 2048 rays)
 __device__ void diffusive_ref_sampler_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset, int ray_id, short mesh_ind) {
     curandState rand_state;
-    curand_init(ray_id, 0, rand_offset, &rand_state);
+    curand_init(ray_id, 0, rand_offset + ray_id, &rand_state);
     const float sampled_angle = curand_uniform(&rand_state) * (PI - 2e-4) - PI_2 + 1e-4;    // we can not have exact pi/2 or -pi/2
     ray_d[ray_id] = rotate_unit_vec(all_normal[mesh_ind], sampled_angle);                   // diffusive (rotate normal from -pi/2 to pi/2)
 }
@@ -51,7 +49,7 @@ __device__ void diffusive_ref_sampler_kernel(const short* const mesh_inds, Vec2*
 // Glossy object (rough specular) reflection light ray direction sampler
 __device__ void glossy_ref_sampler_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset, int ray_id, short mesh_ind, short obj_ind) {
     curandState rand_state;
-    curand_init(ray_id, 0, rand_offset, &rand_state);
+    curand_init(ray_id, 0, rand_offset + ray_id, &rand_state);
     Vec2 normal = all_normal[mesh_ind], reflected_dir = get_specular_dir(ray_d[ray_id], normal);
     float sampled_angle = curand_normal(&rand_state) * fmin(0.5f, objects[obj_ind].u_s);             // 3 sigma is 1.5, which is little bit smaller than pi/2
     sampled_angle = fmaxf(fminf(sampled_angle, PI_2 - 1e-4), -PI_2 + 1e-4);             // clamp to (-pi/2 + ɛ, pi/2 - ɛ)
@@ -87,7 +85,7 @@ __device__ void frensel_eff_sampler_kernel(const short* const mesh_inds, Vec2* r
         reflection_ratio = frensel_equation_natural(n1, ri_sum - n1, fabs(cos_inc), fabs(cosf(angle)));
     }
     curandState rand_state;
-    curand_init(ray_id, 0, rand_offset, &rand_state);
+    curand_init(ray_id, 0, rand_offset + ray_id, &rand_state);
     const bool is_reflection = curand_uniform(&rand_state) <= reflection_ratio;   // random choise of refracted or reflected
     ray_d[ray_id] = is_reflection ? reflected_dir : refracted_dir;          // warp divergence might be more efficient in this case
 }

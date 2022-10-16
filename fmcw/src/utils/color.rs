@@ -2,6 +2,14 @@
 type Color3 = (f32, f32, f32);
 type Color4 = (f32, f32, f32, f32);
 type LColor4 = [f32; 4];
+
+pub struct ComplexColor {
+    pub diffusive: Color3,
+    pub specular: Color3,
+    pub glossy: Color3,
+    pub refractive: Color3
+}
+
 pub struct EditorColor {
     pub bg_color: Color3,
     pub traj_color: Color3,
@@ -17,6 +25,7 @@ pub struct EditorColor {
     pub sepline_color: Color4,
     pub pred_color: Color4,
     pub truth_color: Color4,
+    pub scene: ComplexColor,
     
     pub lidar_color: LColor4,
     pub night_mode: bool
@@ -40,6 +49,13 @@ impl EditorColor {
             pred_color: (0.8, 0.8, 0., 0.7),
             truth_color: (1., 1., 1., 0.7),
 
+            scene: ComplexColor {
+                diffusive: (0.73333, 0.73333, 0.73333),
+                specular: (0.9921568, 0.980392, 0.964705),
+                glossy: (0.89803921, 0.862745, 0.764705),
+                refractive: (0.7843137, 0.890196, 0.831372)
+            },
+
             lidar_color: [1., 0., 0., 1.],
             night_mode: true
         }
@@ -62,6 +78,11 @@ impl EditorColor {
             self.sepline_color = (1., 1., 1., 0.8);
             self.pred_color = (0.8, 0.8, 0., 0.7);
             self.truth_color = (1., 1., 1., 0.7);
+
+            self.scene.diffusive = (0.73333, 0.73333, 0.73333);
+            self.scene.specular = (0.9921568, 0.980392, 0.964705);
+            self.scene.glossy = (0.89803921, 0.862745, 0.764705);
+            self.scene.refractive = (0.7843137, 0.890196, 0.831372);
         } else {
             self.traj_color = (0., 0.5, 0.);
             self.bg_color = (1., 1., 1.);
@@ -78,6 +99,11 @@ impl EditorColor {
             self.sepline_color = (0.1, 0.1, 0.1, 1.);
             self.pred_color = (0.7, 0.7, 0., 0.8);
             self.truth_color = (0., 0., 0., 0.8);
+
+            self.scene.diffusive = (0.262745, 0.239215, 0.23529);
+            self.scene.specular = (0.117647, 0.129411, 0.176470);
+            self.scene.glossy = (0.6039215, 0.58039, 0.51372);
+            self.scene.refractive = (0.2352941, 0.13725, 0.09019);
         }
     }
 }

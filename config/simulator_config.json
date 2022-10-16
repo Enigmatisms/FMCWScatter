@@ -30,8 +30,8 @@
     },
     "tracer":
     {
-        "bounces": 8,
-        "ray_num": 2048
+        "bounces": 4,
+        "ray_num": 4800
     },
     "map_path":"../maps/standard6.txt"
 }
