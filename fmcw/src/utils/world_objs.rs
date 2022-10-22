@@ -23,32 +23,38 @@ pub struct ObjInfo {
     pub _type: libc::c_uchar,
     reserved: [libc::c_uchar; 3],
     ref_index: libc::c_float,
+    rdist: libc::c_float,
+    r_gain: libc::c_float,
+
     u_a: libc::c_float,
     u_s: libc::c_float,
+    extinct: libc::c_float,
     p_c: libc::c_float,
-    f_reserved: [libc::c_float; 3],
     aabb: AABB,
 }
 
 impl ObjInfo {
-    pub fn new(_type: libc::c_uchar, ri: libc::c_float, ua: libc::c_float, us: libc::c_float, pc: libc::c_float, aabb: AABB) -> Self {
+    pub fn new(
+        _type: libc::c_uchar, ri: libc::c_float, rd: libc::c_float, rg: libc::c_float, 
+        ua: libc::c_float, us: libc::c_float, pc: libc::c_float, aabb: AABB
+    ) -> Self {
         ObjInfo {
-            _type: _type, reserved: [0x00; 3], ref_index: ri, 
-            u_a: ua, u_s: us, p_c: pc, f_reserved: [0.; 3], aabb: aabb
+            _type: _type, reserved: [0x00; 3], ref_index: ri, rdist: rd, r_gain: rg,
+            u_a: ua, u_s: us, extinct: ua + us, p_c: pc, aabb: aabb
         }
     }
 
     pub fn from_raw(obj: ObjInfoJson, aabb: AABB) -> Self {
         ObjInfo {
-            _type: obj._type, reserved: [0x00; 3], ref_index: obj.ref_index,
-            u_a: obj.u_a, u_s: obj.u_s, p_c: obj.p_c, f_reserved: [0.; 3], aabb: aabb 
+            _type: obj._type, reserved: [0x00; 3], ref_index: obj.ref_index, rdist: obj.rdist, r_gain: obj.r_gain,
+            u_a: obj.u_a, u_s: obj.u_s, extinct: obj.u_a + obj.u_s,  p_c: obj.p_c, aabb: aabb 
         }
     }
 
     pub fn default() -> Self {
         ObjInfo {
-            _type: 1, reserved: [0x00; 3], ref_index: 1., 
-            u_a: 0., u_s: 0., p_c: 0., f_reserved: [0.; 3], aabb: AABB::default()
+            _type: 1, reserved: [0x00; 3], ref_index: 1., rdist: 0., r_gain: 1.0,
+            u_a: 0., u_s: 0., extinct: 0.,  p_c: 0., aabb: AABB::default()
         }
     }
 }

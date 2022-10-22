@@ -13,6 +13,8 @@ pub type Meshes = Vec<Mesh>;
 pub struct ObjInfoJson {
     pub _type: u8,
     pub ref_index: f32,
+    pub rdist: f32,
+    pub r_gain: f32,
     pub u_a: f32,
     pub u_s: f32,
     pub p_c: f32
