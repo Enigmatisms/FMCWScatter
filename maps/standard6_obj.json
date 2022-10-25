@@ -41,7 +41,7 @@
         {
             "_type": 3,
             "ref_index": 2.5,
-            "rdist": 0.1,
+            "rdist": -0.1,
             "r_gain": 1.0,
             "u_a": 0.0,
             "u_s": 0.0,
@@ -50,7 +50,7 @@
         {
             "_type": 3,
             "ref_index": 1.8,
-            "rdist": 0.01,
+            "rdist": 0.0,
             "r_gain": 1.9,
             "u_a": 0.0,
             "u_s": 0.0,

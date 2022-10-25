@@ -2,7 +2,6 @@
 #include <cmath>
 #include <cuda_runtime.h>
 #include <device_functions.h>
-#include <device_launch_parameters.h>
 #include "cuda_utils.cuh"
 
 #define MAX_PNUM 1024
@@ -30,3 +29,9 @@ __global__ void ray_trace_cuda_kernel(
 );
 
 __global__ void copy_ray_poses_kernel(const Vec2* const intersections, short* const inds, RayInfo* const ray_info, Vec2* const ray_os, Vec2* const ray_ds);
+
+/**
+ * @brief For rays (photons) that are inside scattering medium, we should sample according to mean free path (mfp)
+ * If mfp is smaller than ray.range_bound, it means that there is scattering event (we can't actually hit the surface)
+ */
+__global__ void mfp_sample_kernel(const Vec2* const ray_d, const short* const inds, RayInfo* const ray_info, Vec2* const intersects, size_t random_offset);

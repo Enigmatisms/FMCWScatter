@@ -21,6 +21,7 @@ fn main() {
         .flag("-lcuda")
         .flag("-lcudart")
         .flag("-gencode")
+        .flag("-rdc=true")              // enable CUDA separate compilation
         .flag("arch=compute_86,code=sm_86")
         .file("curt/src/extern_func.cu")
         .file("curt/src/ray_trace_host.cu")

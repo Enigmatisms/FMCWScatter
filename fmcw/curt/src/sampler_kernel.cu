@@ -1,18 +1,9 @@
+#include <iostream>
 #include <curand.h>
 #include <curand_kernel.h>
-#include <iostream>
+#include <device_launch_parameters.h>
 #include "../include/ray_trace_kernel.cuh"
 #include "../include/sampler_kernel.cuh"
-
-__forceinline__ __host__ __device__ Vec2 get_specular_dir(const Vec2& inc_dir, const Vec2& norm_dir) {
-    const float proj = inc_dir.dot(norm_dir);
-    return inc_dir - norm_dir * 2.f * proj;
-}
-
-__forceinline__ __device__ float sgn(float val) {
-    const bool pos = val >= 0.;
-    return -1. + 2 * pos;
-}
 
 __device__ bool snells_law(const Vec2& inci_dir, const Vec2& norm_dir, float n1_n2_ratio, bool same_dir, float& output) {
     // if inci dir is of the same direction as the normal dir, it means that the ray is transmitting out from the media
@@ -104,7 +95,7 @@ __device__ void frensel_eff_sampler_kernel(const short* const mesh_inds, Vec2* r
     ray_d[ray_id] = is_reflection ? reflected_dir : refracted_dir;          // warp divergence might be more efficient in this case
 }
 
-__global__ void non_scattering_interact_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset) {
+__global__ void general_interact_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset) {
     const int ray_id = blockDim.x * blockIdx.x + threadIdx.x;
     const short mesh_ind = mesh_inds[ray_id];
     const short obj_ind = obj_inds[mesh_ind];
@@ -122,6 +113,12 @@ __global__ void non_scattering_interact_kernel(const short* const mesh_inds, Vec
             // TODO: not an ultimate solution for modifying prev_media_id (need to think of a better solution)
             // TODO: more things should be accounted for: world refraction index, transimitting from media 1 to media 2
             frensel_eff_sampler_kernel(mesh_inds, ray_d, rand_offset, ray_id, mesh_ind, obj_ind); break;
+        } case Material::SCAT_ISO: {
+            break;
+        } case Material::SCAT_HG: {
+            break;
+        } case Material::SCAT_RAYLEIGH: {
+            break;
         } default: {
             break;
         }

@@ -1,7 +1,11 @@
 #include <cstdio>
 #include <cmath>
+#include <curand.h>
+#include <curand_kernel.h>
+#include <device_launch_parameters.h>
 #include "../include/ray_trace_kernel.cuh"
 #include "../include/cuda_err_check.cuh"
+#include "../include/world.cuh"
 
 // TODO: we can use dynamic allocation, but I am lazy
 __device__ Vec2 all_points[MAX_PNUM];       // 1024 * 2 * 4 = 8192 bytes used
@@ -9,6 +13,7 @@ __device__ Vec2 all_normal[MAX_PNUM];       // 1024 * 2 * 4 = 8192 bytes used
 __device__ ObjInfo objects[MAX_PNUM >> 3];        // 128 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
 __device__ short obj_inds[MAX_PNUM];        // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
 __device__ char next_ids[MAX_PNUM];         // 1024 bytes used
+__constant__ World world;
 
 // block 4, thread: ceil(total_num / 4)
 __global__ void calculate_normal(int line_seg_num) {
@@ -45,6 +50,7 @@ __forceinline__ __device__ void range_min(const float* const input, int start, i
  * detailed derivation of aabb intersection should be deduced
  */
 __device__ bool aabb_intersected(const Vec2& ray_o, float dx, float dy, int obj_id) {
+    // TODO: problem not fixed (AABB intersection failure)
     const AABB& aabb = objects[obj_id].aabb;
     bool result = false, dx_valid = fabs(dx) > 2e-5f, dy_valid = fabs(dy) > 2e-5f;
     bool x_singular_valid = (ray_o.x < aabb.tr.x && ray_o.x > aabb.bl.x);     // valid condition when dx is too small
@@ -113,6 +119,7 @@ __global__ void ray_trace_cuda_kernel(
     if (mesh_id < mesh_num) {       // for the sake of mesh (line segment division), there might be more threads than needed
         short aabb_index = obj_inds[mesh_id];
         shared_banks[mesh_id] = -0.1f;
+        // what is the meanning of (mesh_id != inds[ray_id]): we can not intersect the last hit line segment
         if (hit_flags[aabb_index] == true && mesh_id != inds[ray_id]) {        // there will be no warp divergence, since the 'else' side is NOP
             const Vec2 v_perp(-dy, dx);
             const int next_id = next_ids[mesh_id];
@@ -133,11 +140,35 @@ __global__ void ray_trace_cuda_kernel(
     if (mesh_id == 0) {             // only one thread attend to the final output
         RayInfo& ray = ray_info[ray_id];
         float range_bound = 0.;
-        int prev_hit = inds[ray_id];
         range_min(local_min_depths, 0, blockDim.y, range_bound, inds[ray_id], local_obj_inds);
         intersects[ray_id] = ray_o + ray_d * range_bound;
         ray.range_bound = range_bound;  // avoid reading from global memory
         ray.acc_range += range_bound;
+    }
+    __syncthreads();
+}
+
+__global__ void mfp_sample_kernel(const Vec2* const ray_d, const short* const inds, RayInfo* const ray_info, Vec2* const intersects, size_t random_offset) {
+    // Segmented to 8 blocks for maximum GPU occupancy
+    const int ray_id = threadIdx.x + blockIdx.x * blockDim.y;
+    RayInfo& ray = ray_info[ray_id];
+    if (ray.is_in_media == true) {             // only rays inside medium will be processed
+        curandState rand_state;
+        curand_init(ray_id, 0, random_offset + ray_id, &rand_state);
+        // Sample by mean free path
+        const int mesh_id = inds[ray_id];
+        const int object_id = obj_inds[mesh_id];
+        const ObjInfo& obj = objects[object_id];
+        float epsilon = 9.9999e-1f * curand_uniform(&rand_state) + 1e-5f;       // sample in [1e-5, 1.0]
+        float sampled_mfp = -logf(epsilon) / obj.extinct * world.scale;         // one meter represents (scale) pixels
+        bool inside_media = sampled_mfp < ray.range_bound;
+        ray.is_in_media = inside_media;
+        if (inside_media) {        // scattering event (mean free path < hit depth)
+            float old_depth = ray.range_bound;
+            ray.acc_range -= old_depth;
+            ray.range_bound = sampled_mfp;
+            intersects[ray_id] += ray_d[ray_id] * (sampled_mfp - old_depth);   // update "intersection" in the medium
+        }
     }
     __syncthreads();
 }

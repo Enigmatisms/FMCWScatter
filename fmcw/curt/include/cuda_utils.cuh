@@ -2,7 +2,6 @@
 #include <cmath>
 #include <cuda_runtime.h>
 #include <device_functions.h>
-#include <device_launch_parameters.h>
 
 #define NULL_HIT 255            // if nothing is hit (unbounded scenes), 255 is assumed, therefore, maximum number of obj is 255
 #define MESH_NULL -1
@@ -24,6 +23,11 @@ struct Vec2 {
     __host__ __device__ Vec2 operator-=(const Vec2& p) {
         x -= p.x;
         y -= p.y;
+    }
+
+    __host__ __device__ Vec2 operator+=(const Vec2& p) {
+        x += p.x;
+        y += p.y;
     }
 
     __host__ __device__ Vec2 operator*=(float v) {
