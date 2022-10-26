@@ -93,7 +93,7 @@ void PathTracer::sample_outgoing_rays(bool update_ray_o) {
     
     // within this function, there is nothing to be fetched multiple times, therefore shared memory is not needed.
     // update the ray direction, in order to get next intersection
-    general_interact_kernel<<< 8, max(ray_num >> 3, 1lu) >>>(cu_mesh_inds, cu_ray_d, random_offset);
+    general_interact_kernel<<< 8, max(ray_num >> 3, 1lu) >>>(cu_mesh_inds, cu_ray_info, cu_ray_d, random_offset);
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
     // update the intersections (ray origin updates from original starting point to intersection points) 
     if (update_ray_o) {

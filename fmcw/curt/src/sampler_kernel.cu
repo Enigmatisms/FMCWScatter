@@ -1,9 +1,8 @@
 #include <iostream>
-#include <curand.h>
-#include <curand_kernel.h>
 #include <device_launch_parameters.h>
 #include "../include/ray_trace_kernel.cuh"
 #include "../include/sampler_kernel.cuh"
+#include "../include/scatter_kernel.cuh"
 
 __device__ bool snells_law(const Vec2& inci_dir, const Vec2& norm_dir, float n1_n2_ratio, bool same_dir, float& output) {
     // if inci dir is of the same direction as the normal dir, it means that the ray is transmitting out from the media
@@ -47,78 +46,78 @@ __forceinline__ __device__ void general_reflection(const Vec2& normal, const Vec
 
 // Diffusive reflection light ray direction sampler
 // block separation (to 8 blocks, 2048 rays)
-__device__ void diffusive_ref_sampler_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset, int ray_id, short mesh_ind) {
+__device__ void diffusive_ref_sampler_kernel(const short* const mesh_inds, const Vec2& normal, Vec2* ray_d, size_t rand_offset, int ray_id) {
     curandState rand_state;
     curand_init(ray_id, 0, rand_offset + ray_id, &rand_state);
     const float sampled_angle = curand_uniform(&rand_state) * (PI - 2e-4) - PI_2 + 1e-4;    // we can not have exact pi/2 or -pi/2
-    ray_d[ray_id] = rotate_unit_vec(all_normal[mesh_ind], sampled_angle);                   // diffusive (rotate normal from -pi/2 to pi/2)
+    ray_d[ray_id] = rotate_unit_vec(normal, sampled_angle);                   // diffusive (rotate normal from -pi/2 to pi/2)
 }
 
 // Glossy object (rough specular) reflection light ray direction sampler
-__device__ void glossy_ref_sampler_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset, int ray_id, short mesh_ind, short obj_ind) {
+__device__ void glossy_ref_sampler_kernel(const short* const mesh_inds, const Vec2& normal, Vec2* ray_d, size_t rand_offset, int ray_id, short obj_ind) {
     curandState rand_state;
     curand_init(ray_id, 0, rand_offset + ray_id, &rand_state);
     Vec2& ray_dir = ray_d[ray_id];
-    Vec2 normal = all_normal[mesh_ind], reflected_dir = get_specular_dir(ray_dir, normal);
     general_reflection(normal, ray_dir, rand_state, ray_dir, objects[obj_ind].rdist);       // glossy specular
 }
 
 // Mirror-like object (pure specular - Dirac BRDF) reflection light ray direction sampler
-__forceinline__ __device__ void specular_ref_sampler_kernel(const short* const mesh_inds, Vec2* ray_d, int ray_id, short mesh_ind) {
-    ray_d[ray_id] = get_specular_dir(ray_d[ray_id], all_normal[mesh_ind]);   // pure specular
+__forceinline__ __device__ void specular_ref_sampler_kernel(const short* const mesh_inds, const Vec2& normal, Vec2* ray_d, int ray_id) {
+    ray_d[ray_id] = get_specular_dir(ray_d[ray_id], normal);   // pure specular
 }
 
 // Frensel reflection (can be reflected or refracted) - general reflection (can be diffusive, glossy or specular)
 // Random number is needed here, for reflection and transmission can both happen
-__device__ void frensel_eff_sampler_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset, int ray_id, short mesh_ind, short obj_ind) {
-    const Vec2& normal = all_normal[mesh_ind], &ray_dir = ray_d[ray_id];
-    const ObjInfo& object = objects[obj_ind];
+__device__ bool frensel_eff_sampler_kernel(const ObjInfo& object, Vec2& ray_d, size_t rand_offset, int ray_id, short mesh_ind) {
+    const Vec2& normal = all_normal[mesh_ind];
     const float ref_index = object.ref_index;
     const float rdist = object.rdist, r_gain = object.r_gain;
     curandState rand_state;
     curand_init(ray_id, 0, rand_offset + ray_id, &rand_state);
     Vec2 refracted_dir, reflected_dir;
-    general_reflection(normal, ray_dir, rand_state, reflected_dir, rdist);
+    general_reflection(normal, ray_d, rand_state, reflected_dir, rdist);
 
     float angle = 0., reflection_ratio = 1.0;
-    const float cos_inc = ray_dir.dot(normal), ri_sum = 1. + ref_index;         // TODO: substitude 1. to world RI 
+    const float cos_inc = ray_d.dot(normal), ri_sum = 1. + ref_index;         // TODO: substitude 1. to world RI 
     const bool same_dir = cos_inc > 0.;
     const float n1 = (1. - same_dir) + ref_index * same_dir;        // if same dir (out from media), n1 = ref_index, n2 = 1., else n1 = 1., n2 = ref_index
     // We do not account for transmitting from one media directly into another media
-    const bool result_valid = snells_law(ray_dir, normal, n1 / (ri_sum - n1), same_dir, angle);
+    const bool result_valid = snells_law(ray_d, normal, n1 / (ri_sum - n1), same_dir, angle);
     if (result_valid == true) {
         refracted_dir = rotate_unit_vec(normal, angle);
         reflection_ratio = frensel_equation_natural(n1, ri_sum - n1, fabs(cos_inc), fabs(cosf(angle))) * r_gain;
     }
 
     const bool is_reflection = curand_uniform(&rand_state) <= reflection_ratio;   // random choise of refracted or reflected
-    ray_d[ray_id] = is_reflection ? reflected_dir : refracted_dir;          // warp divergence might be more efficient in this case
+    ray_d = is_reflection ? reflected_dir : refracted_dir;          // warp divergence might be more efficient in this case
+    return !(same_dir ^ is_reflection);         // XOR: when same_dir(1), is_ref(1) (penetrate out from medium but reflected -> is in media)
 }
 
-__global__ void general_interact_kernel(const short* const mesh_inds, Vec2* ray_d, size_t rand_offset) {
+__global__ void general_interact_kernel(const short* const mesh_inds, RayInfo* const ray_info, Vec2* ray_d, size_t rand_offset) {
     const int ray_id = blockDim.x * blockIdx.x + threadIdx.x;
     const short mesh_ind = mesh_inds[ray_id];
     const short obj_ind = obj_inds[mesh_ind];
     // There is bound to be warp divergence (inevitable, or rather say, preferred)
-    const Material obj_type = objects[obj_ind].type;
+    const ObjInfo& object = objects[obj_ind];
+    const Vec2& normal = all_normal[mesh_ind];
     // specular_ref_sampler_kernel(mesh_inds, ray_d, ray_id, mesh_ind);
-    switch (obj_type) {
+    switch (object.type) {
           case Material::DIFFUSE: {
-            diffusive_ref_sampler_kernel(mesh_inds, ray_d, rand_offset, ray_id, mesh_ind); break;
+            diffusive_ref_sampler_kernel(mesh_inds, normal, ray_d, rand_offset, ray_id); break;
         } case Material::GLOSSY: {
-            glossy_ref_sampler_kernel(mesh_inds, ray_d, rand_offset, ray_id, mesh_ind, obj_ind); break;
+            glossy_ref_sampler_kernel(mesh_inds, normal, ray_d, rand_offset, ray_id, obj_ind); break;
         } case Material::SPECULAR: {
-            specular_ref_sampler_kernel(mesh_inds, ray_d, ray_id, mesh_ind); break;
+            specular_ref_sampler_kernel(mesh_inds, normal, ray_d, ray_id); break;
         } case Material::REFRACTIVE: {
             // TODO: not an ultimate solution for modifying prev_media_id (need to think of a better solution)
             // TODO: more things should be accounted for: world refraction index, transimitting from media 1 to media 2
-            frensel_eff_sampler_kernel(mesh_inds, ray_d, rand_offset, ray_id, mesh_ind, obj_ind); break;
+            frensel_eff_sampler_kernel(object, ray_d[ray_id], rand_offset, ray_id, mesh_ind); break;
         } case Material::SCAT_ISO: {
-            break;
+            scattering_interaction(object, ray_d[ray_id], iso_pfunc, ray_info[ray_id].is_in_media, mesh_ind, rand_offset); break;
         } case Material::SCAT_HG: {
-            break;
+            scattering_interaction(object, ray_d[ray_id], hg_pfunc, ray_info[ray_id].is_in_media, mesh_ind, rand_offset); break;
         } case Material::SCAT_RAYLEIGH: {
-            break;
+            scattering_interaction(object, ray_d[ray_id], rl_pfunc, ray_info[ray_id].is_in_media, mesh_ind, rand_offset); break;
         } default: {
             break;
         }

@@ -79,7 +79,7 @@ struct AABB {
     Vec2 bl;        // bottom left point (min x, min y)
 
     __host__ __device__ AABB() {}
-    __host__ __device__ AABB(const Vec2& tr, const Vec2& bl): tr(tr), bl(bl) {}
+    __host__ __device__ AABB(float bx, float by, float ux, float uy): tr(ux, uy), bl(bx, by) {}
 };
 
 using uint8 = unsigned char;

@@ -7,7 +7,7 @@
 
 class World {
 public:
-    __host__ __device__ World(): scale(100.) {};
+    __host__ __device__ World() {};
 public:
     // TODO: what about the logic when the world is full of medium (single type)
     float scale;

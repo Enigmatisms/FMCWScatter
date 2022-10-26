@@ -21,12 +21,13 @@ fn main() {
         .flag("-lcuda")
         .flag("-lcudart")
         .flag("-gencode")
-        .flag("-rdc=true")              // enable CUDA separate compilation
         .flag("arch=compute_86,code=sm_86")
+        .flag("-rdc=true")              // enable CUDA separate compilation
         .file("curt/src/extern_func.cu")
         .file("curt/src/ray_trace_host.cu")
         .file("curt/src/ray_trace_kernel.cu")
         .file("curt/src/sampler_kernel.cu")
+        .file("curt/src/scatter_kernel.cu")
         .compile("librt_helper.a");
     // Maybe two Build instances solves the problem
 }
