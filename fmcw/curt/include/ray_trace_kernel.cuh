@@ -2,7 +2,9 @@
 #include <cmath>
 #include <cuda_runtime.h>
 #include <device_functions.h>
-#include "cuda_utils.cuh"
+
+#include "rt_ray.cuh"
+#include "rt_objects.cuh"
 
 #define MAX_PNUM 1024
 

@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 #include <device_functions.h>
 #include <device_launch_parameters.h>
-#include "cuda_utils.cuh"
+#include "rt_objects.cuh"
 
 class World {
 public:
