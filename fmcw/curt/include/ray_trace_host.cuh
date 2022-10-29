@@ -33,9 +33,22 @@ public:
     void next_intersections(int mesh_num, int aabb_num);
 
     /**
+     * @brief Scattering event (Mean free path sampling for the rays labelled `is_in_media = true`)
+     * Take the advantage of implicit inline function
+     */
+    void scattering_event() {
+        static size_t random_offset = 0;
+        mfp_sample_kernel<<< 8, max(ray_num >> 3, 1lu) >>>(cu_ray_d, cu_mesh_inds, cu_ray_info, cu_intersects, random_offset);
+        CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+        // Don't copy intersections right after intersection caculation (should be right after scattering events)
+        CUDA_CHECK_RETURN(cudaMemcpy(intersect_ptr, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToHost));
+        random_offset += 1;
+    }
+
+    /**
      * @brief after hitting the surface, the direction of the ray should be recomputed.
      */
-    void sample_outgoing_rays(bool update_ray_o = true);
+    void sample_outgoing_rays();
 
     size_t get_ray_num() const {
         return ray_num;

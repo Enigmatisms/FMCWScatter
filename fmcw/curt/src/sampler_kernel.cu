@@ -94,6 +94,8 @@ __device__ bool frensel_eff_sampler_kernel(const ObjInfo& object, RayInfo& rayi,
     return !(same_dir ^ is_reflection);         // XOR: when same_dir(1), is_ref(1) (penetrate out from medium but reflected -> is in media)
 }
 
+/// TODO: Logic failure: what if photon is not inside the object but the world (with scattering medium)?
+/// The information need is not stored in objects (it should not be), but in __constant__ world
 __global__ void general_interact_kernel(const short* const mesh_inds, RayInfo* const ray_info, Vec2* ray_d, size_t rand_offset) {
     const int ray_id = blockDim.x * blockIdx.x + threadIdx.x;
     const short mesh_ind = mesh_inds[ray_id];
@@ -102,7 +104,6 @@ __global__ void general_interact_kernel(const short* const mesh_inds, RayInfo* c
     const ObjInfo& object = objects[obj_ind];
     const Vec2& normal = all_normal[mesh_ind];
     RayInfo& this_ray = ray_info[ray_id];
-    // specular_ref_sampler_kernel(mesh_inds, ray_d, ray_id, mesh_ind);
     switch (object.type) {
           case Material::DIFFUSE: {
             diffusive_ref_sampler_kernel(object, normal, this_ray, ray_d, rand_offset, ray_id); break;
@@ -111,15 +112,14 @@ __global__ void general_interact_kernel(const short* const mesh_inds, RayInfo* c
         } case Material::SPECULAR: {
             specular_ref_sampler_kernel(object, normal, this_ray, ray_d, ray_id); break;
         } case Material::REFRACTIVE: {
-            // TODO: not an ultimate solution for modifying prev_media_id (need to think of a better solution)
             // TODO: more things should be accounted for: world refraction index, transimitting from media 1 to media 2
             frensel_eff_sampler_kernel(object, this_ray, ray_d[ray_id], rand_offset, ray_id, mesh_ind); break;
         } case Material::SCAT_ISO: {
-            scattering_interaction(object, this_ray, ray_d[ray_id], iso_pfunc, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
+            scattering_interaction(object, this_ray, ray_d[ray_id], isotropic_phase, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
         } case Material::SCAT_HG: {
-            scattering_interaction(object, this_ray, ray_d[ray_id], hg_pfunc, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
+            scattering_interaction(object, this_ray, ray_d[ray_id], henyey_greenstein_phase, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
         } case Material::SCAT_RAYLEIGH: {
-            scattering_interaction(object, this_ray, ray_d[ray_id], rl_pfunc, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
+            scattering_interaction(object, this_ray, ray_d[ray_id], rayleigh_phase, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
         } default: {
             break;
         }

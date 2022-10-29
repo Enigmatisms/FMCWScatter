@@ -98,7 +98,7 @@ pub fn update_gui(app: &App, model: &mut Model, update: &Update) {
                     let mut next_ids: Vec<i8> = Vec::new();
                     initialize_cpp_end(&raw_points, &mut flat_pts, &mut next_ids);
                     let aabbs = get_aabb(&raw_points);
-                    let raw_objs = read_config::<ObjVecJson, _>("../maps/standard6_obj.json");
+                    let raw_objs = read_config::<ObjVecJson, _>("../maps/reflect_only.json");
                     let mesh_inds = get_mesh_obj_indices(&raw_points);
                     rt_ctrl.objects = RayTracingCtrl::load_from_raw(raw_objs, aabbs);
                     rt_ctrl.flattened_pts = flat_pts;

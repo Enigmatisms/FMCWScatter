@@ -20,17 +20,17 @@ struct Vec2 {
         return Vec2(x + p.x, y + p.y);         // Return value optimized?
     }
 
-    __host__ __device__ Vec2 operator-=(const Vec2& p) {
+    __host__ __device__ void operator-=(const Vec2& p) {
         x -= p.x;
         y -= p.y;
     }
 
-    __host__ __device__ Vec2 operator+=(const Vec2& p) {
+    __host__ __device__ void operator+=(const Vec2& p) {
         x += p.x;
         y += p.y;
     }
 
-    __host__ __device__ Vec2 operator*=(float v) {
+    __host__ __device__ void operator*=(float v) {
         x *= v;
         y *= v;
     }

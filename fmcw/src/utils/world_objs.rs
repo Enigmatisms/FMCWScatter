@@ -58,3 +58,17 @@ impl ObjInfo {
         }
     }
 }
+
+#[repr(C)]
+pub struct World {
+    pub scale: libc::c_float,
+    pub prop: ObjInfo
+}
+
+impl World {
+    pub fn from_raw(scale: f32, obj: ObjInfoJson) -> Self {
+        World {
+            scale: scale, prop: ObjInfo::from_raw(obj, AABB::default())
+        }
+    }
+}

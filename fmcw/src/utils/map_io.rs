@@ -45,7 +45,8 @@ pub struct ScreenConfig {
 #[derive(Deserialize, Serialize, Clone)]
 pub struct TracerConfig {
     pub bounces: usize,
-    pub ray_num: usize
+    pub ray_num: usize,
+    pub pixel_scale: f32,
 }
 
 #[repr(C)]
@@ -137,7 +138,7 @@ pub fn read_config<RType: DeserializeOwned, PathType: AsRef<std::path::Path>>(fi
 
 pub fn load_map_file(map_points: &mut Meshes) -> String {
     let path = rfd::FileDialog::new()
-        .set_file_name("../maps/standard0.lgp")
+        .set_file_name("../maps/reflect_only.txt")
         .set_directory(".")
         .pick_file();
     let mut result = String::new();

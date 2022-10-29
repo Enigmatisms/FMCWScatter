@@ -13,7 +13,7 @@ __device__ Vec2 all_normal[MAX_PNUM];       // 1024 * 2 * 4 = 8192 bytes used
 __device__ ObjInfo objects[MAX_PNUM >> 3];        // 128 * 4 * 4 = 4096 bytes used (maximum allowed object number 255)
 __device__ short obj_inds[MAX_PNUM];        // line segs -> obj (LUT) (material and media & AABB）(2048 bytes used)
 __device__ char next_ids[MAX_PNUM];         // 1024 bytes used
-__constant__ World world;
+__constant__ World world[1];
 
 // block 4, thread: ceil(total_num / 4)
 __global__ void calculate_normal(int line_seg_num) {
@@ -160,7 +160,7 @@ __global__ void mfp_sample_kernel(const Vec2* const ray_d, const short* const in
         const int object_id = obj_inds[mesh_id];
         const ObjInfo& obj = objects[object_id];
         float epsilon = 9.9999e-1f * curand_uniform(&rand_state) + 1e-5f;       // sample in [1e-5, 1.0]
-        float sampled_mfp = -logf(epsilon) / obj.extinct * world.scale;         // one meter represents (scale) pixels
+        float sampled_mfp = -logf(epsilon) / obj.extinct * world[0].scale;         // one meter represents (scale) pixels
         bool inside_media = sampled_mfp < ray.range_bound;
         ray.is_in_media = inside_media;
         if (inside_media) {        // scattering event (mean free path < hit depth)
@@ -173,10 +173,10 @@ __global__ void mfp_sample_kernel(const Vec2* const ray_d, const short* const in
     __syncthreads();
 }
 
-__global__ void copy_ray_poses_kernel(const Vec2* const intersections, short* const inds, RayInfo* const ray_info, Vec2* const ray_os, Vec2* const ray_ds) {
+__global__ void copy_ray_poses_kernel(Vec2* const intersections, short* const inds, RayInfo* const ray_info, Vec2* const ray_ds) {
     const int ray_id = threadIdx.x + blockIdx.x * blockDim.x;
-    ray_os[ray_id] = intersections[0];
     if (ray_id > 0) {
+        intersections[ray_id] = intersections[0];
         ray_ds[ray_id] = ray_ds[0];
         inds[ray_id] = inds[0];
         ray_info[ray_id] = ray_info[0];

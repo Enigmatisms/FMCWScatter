@@ -4,16 +4,34 @@
 #include "../include/sampler_kernel.cuh"
 #include "../include/ray_trace_kernel.cuh"
 
-// TODO: setup function (https://leimao.github.io/blog/Pass-Function-Pointers-to-Kernels-CUDA/)
-__device__ ScatFuncType hg_pfunc, rl_pfunc, iso_pfunc;       // directly pass the function pointter to the function
-
 __device__ void henyey_greenstein_phase(const ObjInfo& obj, Vec2& output, int ray_id, size_t rand_offset) {
     // H-G scattering
-
+    curandState rand_state;
+    curand_init(ray_id, 0, rand_offset + ray_id, &rand_state);
+    const float next_rd = 2.f * curand_uniform(&rand_state) - 1.f;
+    const float p_c = obj.p_c;
+    const float inner = (1.f - p_c) / (1.0000001f + p_c) * tanf(PI_2 * next_rd);
+    const float cos_t = fmin( cosf( atanf(2.f * inner) ), 1.f );
+    const float sin_t = sgn(next_rd) * sqrtf(fmax(0.f, 1.f - cos_t * cos_t));
+    const float out_x = output.y * sin_t + output.x * cos_t;
+    const float out_y = -output.x * sin_t + output.y * cos_t;
+    output.x = out_x;
+    output.y = out_y;
 }
 
-__device__ void rayleign_phase(const ObjInfo& obj, Vec2& output, int ray_id, size_t rand_offset) {
+// about fmax, fmin: https://stackoverflow.com/questions/64156448/how-to-convince-cmake-to-use-the-cuda-fmax-function-instead-of-the-std-cmath-fun
+__device__ void rayleigh_phase(const ObjInfo& obj, Vec2& output, int ray_id, size_t rand_offset) {
     // Rayleign scattering
+    curandState rand_state;
+    curand_init(ray_id, 0, rand_offset + ray_id, &rand_state);
+    const float next_rd = 2.f * curand_uniform(&rand_state) - 1.f;
+    const float u = -cbrtf(2.f * next_rd + sqrtf(4.f * next_rd * next_rd + 1.0));
+    const float cos_t = fmax(-1.f, fmin(0.f, u - 1.f / u));
+    const float sin_t = sgn(next_rd) * sqrtf(fmax(0.f, 1 - cos_t * cos_t));
+    const float out_x = output.y * cos_t + output.x * sin_t;
+    const float out_y = -output.x * cos_t + output.y * sin_t;
+    output.x = out_x;
+    output.y = out_y;
 }
 
 __device__ void isotropic_phase(const ObjInfo& obj, Vec2& output, int ray_id, size_t rand_offset) {

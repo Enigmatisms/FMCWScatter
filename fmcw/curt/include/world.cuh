@@ -14,4 +14,4 @@ public:
     ObjInfo w;
 };
 
-extern __constant__ World world;
+extern __constant__ World world[1];

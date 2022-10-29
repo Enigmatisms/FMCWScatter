@@ -66,8 +66,6 @@ void PathTracer::next_intersections(int mesh_num, int aabb_num) {
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
     for (int i = 0; i < 8; i++)
         cudaStreamDestroy(streams[i]);
-    CUDA_CHECK_RETURN(cudaMemcpy(intersect_ptr, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToHost));
-    // TODO: Do we really need range output and mesh_inds output (to CPU end?)
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 }
 
@@ -83,22 +81,19 @@ void PathTracer::first_intersection(float origin_x, float origin_y, float dir_a,
         cu_ray_os, cu_ray_d, cu_intersects, cu_ray_info, cu_mesh_inds, 0, mesh_num, aabb_num
     );
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-    copy_ray_poses_kernel<<<8, max(ray_num >> 3, 1lu)>>>(cu_intersects, cu_mesh_inds, cu_ray_info, cu_ray_os, cu_ray_d);
-    CUDA_CHECK_RETURN(cudaMemcpy(intersect_ptr, cu_ray_os, ray_num * sizeof(Vec2), cudaMemcpyDeviceToHost));
+    copy_ray_poses_kernel<<<8, max(ray_num >> 3, 1lu)>>>(cu_intersects, cu_mesh_inds, cu_ray_info, cu_ray_d);
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 }
 
-void PathTracer::sample_outgoing_rays(bool update_ray_o) {
+void PathTracer::sample_outgoing_rays() {
     static size_t random_offset = 0;
-    
+
     // within this function, there is nothing to be fetched multiple times, therefore shared memory is not needed.
     // update the ray direction, in order to get next intersection
     general_interact_kernel<<< 8, max(ray_num >> 3, 1lu) >>>(cu_mesh_inds, cu_ray_info, cu_ray_d, random_offset);
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
     // update the intersections (ray origin updates from original starting point to intersection points) 
-    if (update_ray_o) {
-        CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToDevice));  // assume this copy operation won't emit exception
-    }
+    CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToDevice));  // assume this copy operation won't emit exception
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
     random_offset += 1;
 }

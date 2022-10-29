@@ -6,7 +6,7 @@ use super::rt_helper::static_scene_update;
 use crate::utils::map_io;
 use crate::utils::color::EditorColor;
 use crate::utils::ffi_helper::Vec2_cpp;
-use crate::utils::world_objs::{ObjInfo, AABB};
+use crate::utils::world_objs::{ObjInfo, AABB, World};
 use crate::utils::utils::{initialize_cpp_end, ModelBasics, BOUNDARIES};
 use crate::utils::structs::{WindowCtrl, WindowTransform, PlotConfig, KeyStatus};
 
@@ -46,16 +46,20 @@ pub struct RayTracingCtrl {
     pub flattened_pts: Vec<Vec2_cpp>,
     pub nexts: Vec<i8>,
     pub objects: Vec<ObjInfo>,
+    pub world: World,
     pub obj_inds: Vec<i16>,
     pub ray_num: usize,
     pub bounces: usize
 }
 
 impl RayTracingCtrl {
-    pub fn new(f_pts: Vec<Vec2_cpp>, nexts: Vec<i8>, raw_objs: map_io::ObjVecJson, aabbs: Vec<AABB>, inds: Vec<i16>, rnum: usize, bnum: usize) -> Self {
+    pub fn new(
+        f_pts: Vec<Vec2_cpp>, nexts: Vec<i8>, raw_objs: map_io::ObjVecJson, aabbs: Vec<AABB>, 
+        w: World, inds: Vec<i16>, rnum: usize, bnum: usize
+    ) -> Self {
         RayTracingCtrl {
             flattened_pts: f_pts, nexts: nexts, objects: RayTracingCtrl::load_from_raw(raw_objs, aabbs), 
-            obj_inds: inds, ray_num: rnum, bounces: bnum
+            world: w, obj_inds: inds, ray_num: rnum, bounces: bnum
         }
     }
 
@@ -99,7 +103,9 @@ impl Model {
         let mut next_ids: Vec<i8> = Vec::new();
         initialize_cpp_end(&meshes, &mut flat_pts, &mut next_ids);
         let aabbs = get_aabb(&meshes);
-        let raw_objs = map_io::read_config::<map_io::ObjVecJson, _>("../maps/standard6_obj.json");
+        // Load object file
+        let mut raw_objs = map_io::read_config::<map_io::ObjVecJson, _>("../maps/reflect_only.json");
+        let world_obj = raw_objs.items.pop().unwrap();
         let mesh_inds = get_mesh_obj_indices(&meshes);
         let model = Model {
             map_points: meshes, 
@@ -109,7 +115,10 @@ impl Model {
                 config.screen.sub_width as f32, config.screen.sub_height as f32, exit
             ),
             wtrans: WindowTransform::new(),
-            rt_ctrl: RayTracingCtrl::new(flat_pts, next_ids, raw_objs, aabbs, mesh_inds, config.tracer.ray_num, config.tracer.bounces),
+            rt_ctrl: RayTracingCtrl::new(
+                flat_pts, next_ids, raw_objs, aabbs, World::from_raw(config.tracer.pixel_scale, world_obj), 
+                mesh_inds, config.tracer.ray_num, config.tracer.bounces
+            ),
             ray_paths: vec![vec![pt2(0., 0.); config.tracer.bounces + 1]; config.tracer.ray_num],
             pose: pt3(0., 0., 0.),
             velo: pt3(0., 0., 0.),
@@ -124,7 +133,7 @@ impl Model {
         unsafe {
             static_scene_update(
                 model.rt_ctrl.flattened_pts.as_ptr(), model.rt_ctrl.objects.as_ptr(),
-                model.rt_ctrl.obj_inds.as_ptr(), model.rt_ctrl.nexts.as_ptr(), 
+                &model.rt_ctrl.world, model.rt_ctrl.obj_inds.as_ptr(), model.rt_ctrl.nexts.as_ptr(), 
                 model.rt_ctrl.flattened_pts.len() as u64, model.rt_ctrl.objects.len() as u64
             );
         }
