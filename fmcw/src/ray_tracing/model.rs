@@ -1,3 +1,4 @@
+use chrono::format;
 use nannou::prelude::*;
 use nannou_egui::Egui;
 
@@ -104,7 +105,8 @@ impl Model {
         initialize_cpp_end(&meshes, &mut flat_pts, &mut next_ids);
         let aabbs = get_aabb(&meshes);
         // Load object file
-        let mut raw_objs = map_io::read_config::<map_io::ObjVecJson, _>("../maps/reflect_only.json");
+        let path = format!("{}.json", config.map_path);
+        let mut raw_objs = map_io::read_config::<map_io::ObjVecJson, _>(path);
         let world_obj = raw_objs.items.pop().unwrap();
         let mesh_inds = get_mesh_obj_indices(&meshes);
         let model = Model {

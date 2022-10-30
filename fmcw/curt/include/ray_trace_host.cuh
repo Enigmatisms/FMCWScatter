@@ -42,13 +42,13 @@ public:
         CUDA_CHECK_RETURN(cudaDeviceSynchronize());
         // Don't copy intersections right after intersection caculation (should be right after scattering events)
         CUDA_CHECK_RETURN(cudaMemcpy(intersect_ptr, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToHost));
-        random_offset += 1;
+        // random_offset += 1;
     }
 
     /**
      * @brief after hitting the surface, the direction of the ray should be recomputed.
      */
-    void sample_outgoing_rays();
+    void sample_outgoing_rays(bool is_first = false);
 
     size_t get_ray_num() const {
         return ray_num;

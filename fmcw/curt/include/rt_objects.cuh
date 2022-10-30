@@ -20,7 +20,7 @@ enum Material: uint8 {
     REFRACTIVE = 3,
     SCAT_ISO = 4,
     SCAT_HG = 5,
-    SCAT_RAYLEIGH = 6,
+    SCAT_RAYLEIGH = 6
 };
 
 // object-managing struct

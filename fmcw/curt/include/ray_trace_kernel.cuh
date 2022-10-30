@@ -18,6 +18,9 @@ extern __device__ char next_ids[MAX_PNUM];       // 1024 bytes used
 
 __global__ void calculate_normal(int line_seg_num);
 
+// Clear every before first_intersection calculation (Do not forget!!!!)
+__global__ void first_intersect_reset(RayInfo* const ray_info);
+
 /**
  * input : point origin (Vec2 array), ray angles: float array
  * output1 : minimum depth (float (single value, since each block represent one single ray) should be converted back to int)

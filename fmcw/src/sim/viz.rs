@@ -49,7 +49,8 @@ pub fn model(app: &App) -> Model {
         .build().unwrap();
     
     app.set_exit_on_escape(false);
-    let meshes: map_io::Meshes = map_io::parse_map_file(config.map_path.as_str()).unwrap();
+    let map_path = format!("{}.txt", config.map_path);
+    let meshes: map_io::Meshes = map_io::parse_map_file(map_path).unwrap();
 
     Model::new(app, window_id, sub_win_id, config, meshes)
 }

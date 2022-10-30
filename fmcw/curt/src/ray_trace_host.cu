@@ -70,7 +70,10 @@ void PathTracer::next_intersections(int mesh_num, int aabb_num) {
 }
 
 void PathTracer::first_intersection(float origin_x, float origin_y, float dir_a, int mesh_num, int aabb_num) {
+    // Things which are not going to be overwritten should be reset
     CUDA_CHECK_RETURN(cudaMemset(cu_mesh_inds, 0xff, ray_num * sizeof(short)));
+    first_intersect_reset<<< 8, max(ray_num >> 3, 1lu)>>>(cu_ray_info);
+
     size_t shared_mem_size = (ray_num << 2) + 48 + pad_bytes(aabb_num);
     size_t threads_along_x = get_padded_len(mesh_num, 8.);
     const Vec2 ray_o(origin_x, origin_y);
@@ -85,15 +88,14 @@ void PathTracer::first_intersection(float origin_x, float origin_y, float dir_a,
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 }
 
-void PathTracer::sample_outgoing_rays() {
+void PathTracer::sample_outgoing_rays(bool is_first) {
     static size_t random_offset = 0;
-
+    printf("Scattering-interaction: %d\n", int(is_first));
     // within this function, there is nothing to be fetched multiple times, therefore shared memory is not needed.
     // update the ray direction, in order to get next intersection
     general_interact_kernel<<< 8, max(ray_num >> 3, 1lu) >>>(cu_mesh_inds, cu_ray_info, cu_ray_d, random_offset);
-    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
     // update the intersections (ray origin updates from original starting point to intersection points) 
     CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToDevice));  // assume this copy operation won't emit exception
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-    random_offset += 1;
+    // random_offset += 1;
 }

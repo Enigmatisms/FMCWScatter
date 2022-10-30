@@ -39,7 +39,8 @@ pub fn model(app: &App) -> Model {
         .build().unwrap();
     
     app.set_exit_on_escape(false);
-    let meshes: map_io::Meshes = map_io::parse_map_file(config.map_path.as_str()).unwrap();
+    let map_path = format!("{}.txt", config.map_path);
+    let meshes: map_io::Meshes = map_io::parse_map_file(map_path).unwrap();
     unsafe {
         rt_helper::setup_path_tracer(config.tracer.ray_num as libc::c_int);
     }
@@ -124,7 +125,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
         .y(model.pose.y)
         .color(STEELBLUE);
 
-    draw_ray_path(&draw, &model.ray_paths, (1., 0., 0., 0.01));
+    draw_ray_path(&draw, &model.ray_paths, (1., 0., 0., 0.1));
     
     let start_pos = pt2(model.pose.x, model.pose.y);
     let dir = plot::local_mouse_position(app, &model.wtrans) - start_pos;

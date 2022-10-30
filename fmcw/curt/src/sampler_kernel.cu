@@ -91,7 +91,8 @@ __device__ bool frensel_eff_sampler_kernel(const ObjInfo& object, RayInfo& rayi,
 
     const bool is_reflection = curand_uniform(&rand_state) <= reflection_ratio;   // random choise of refracted or reflected
     ray_d = is_reflection ? reflected_dir : refracted_dir;          // warp divergence might be more efficient in this case
-    return !(same_dir ^ is_reflection);         // XOR: when same_dir(1), is_ref(1) (penetrate out from medium but reflected -> is in media)
+    printf("Same dir: %d, is reflection: %d, result valid: %d, reflection_ratio: %f, ref gain: %f, %f, %f\n", int(same_dir), int(is_reflection), int(result_valid), reflection_ratio, r_gain, fabs(cos_inc), fabs(cosf(angle)));
+    return (same_dir == is_reflection);         // XOR: when same_dir(1), is_ref(1) (penetrate out from medium but reflected -> is in media)
 }
 
 /// TODO: Logic failure: what if photon is not inside the object but the world (with scattering medium)?

@@ -30,9 +30,9 @@
     },
     "tracer":
     {
-        "bounces": 4,
-        "ray_num": 4800,
+        "bounces": 5,
+        "ray_num": 64,
         "pixel_scale": 50.0
     },
-    "map_path":"../maps/reflect_only.txt"
+    "map_path":"../maps/scatter_test"
 }

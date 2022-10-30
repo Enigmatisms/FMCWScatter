@@ -20,6 +20,7 @@ extern "C" {
     }
 
     void first_ray_intersections(Vec2* const intersections, const Vec3& pose, int mesh_num, int aabb_num) {
+        printf("First intersection\n");
         path_tracer.first_intersection(pose.x, pose.y, pose.z, mesh_num, aabb_num);
         path_tracer.scattering_event();
         // Vec2* tmp = path_tracer.intersects.get();
@@ -29,7 +30,7 @@ extern "C" {
         // }
         // printf("\n");
         std::copy_n(path_tracer.intersects.get(), path_tracer.get_ray_num(), intersections);
-        path_tracer.sample_outgoing_rays();    // do not update ray_os (from intersection)
+        path_tracer.sample_outgoing_rays(1);    // do not update ray_os (from intersection)
     }
 
     // TODO: To be substituted by texture memory in the future

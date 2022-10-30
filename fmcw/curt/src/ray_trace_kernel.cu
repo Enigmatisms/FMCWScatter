@@ -120,7 +120,8 @@ __global__ void ray_trace_cuda_kernel(
         short aabb_index = obj_inds[mesh_id];
         shared_banks[mesh_id] = -0.1f;
         // what is the meanning of (mesh_id != inds[ray_id]): we can not intersect the last hit line segment
-        if (hit_flags[aabb_index] == true && mesh_id != inds[ray_id]) {        // there will be no warp divergence, since the 'else' side is NOP
+        const bool not_same_mesh = (mesh_id != inds[ray_id]) || (!ray_info[ray_id].on_edge);
+        if (hit_flags[aabb_index] == true && not_same_mesh) {        // there will be no warp divergence, since the 'else' side is NOP
             const Vec2 v_perp(-dy, dx);
             const int next_id = next_ids[mesh_id];
             const int next_id_neg = int(next_ids[mesh_id] < 0);
@@ -148,9 +149,20 @@ __global__ void ray_trace_cuda_kernel(
     __syncthreads();
 }
 
+__global__ void first_intersect_reset(RayInfo* const ray_info) {
+    const int ray_id = threadIdx.x + blockIdx.x * blockDim.x;
+    RayInfo& ray = ray_info[ray_id];
+    ray.terminated      = false;
+    ray.is_in_media     = false;
+    ray.on_edge         = true;
+    ray.acc_range       = 0.;
+    ray.range_bound     = 0.;
+    ray.energy          = 1.0;
+}
+
 __global__ void mfp_sample_kernel(const Vec2* const ray_d, const short* const inds, RayInfo* const ray_info, Vec2* const intersects, size_t random_offset) {
     // Segmented to 8 blocks for maximum GPU occupancy
-    const int ray_id = threadIdx.x + blockIdx.x * blockDim.y;
+    const int ray_id = threadIdx.x + blockIdx.x * blockDim.x;
     RayInfo& ray = ray_info[ray_id];
     if (ray.is_in_media == true) {             // only rays inside medium will be processed
         curandState rand_state;
@@ -163,6 +175,8 @@ __global__ void mfp_sample_kernel(const Vec2* const ray_d, const short* const in
         float sampled_mfp = -logf(epsilon) / obj.extinct * world[0].scale;         // one meter represents (scale) pixels
         bool inside_media = sampled_mfp < ray.range_bound;
         ray.is_in_media = inside_media;
+        ray.on_edge = !inside_media;                                            // on edge will only be modified in mfp_sample_kernel
+        printf("Ray (%d), Mean free path: %f, bound: %f\n", ray_id, sampled_mfp, ray.range_bound);
         if (inside_media) {        // scattering event (mean free path < hit depth)
             float old_depth = ray.range_bound;
             ray.acc_range -= old_depth;
