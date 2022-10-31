@@ -125,7 +125,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
         .y(model.pose.y)
         .color(STEELBLUE);
 
-    draw_ray_path(&draw, &model.ray_paths, (1., 0., 0., 0.1));
+    draw_ray_path(&draw, &model.ray_paths, (1., 0., 0., 0.01));
     
     let start_pos = pt2(model.pose.x, model.pose.y);
     let dir = plot::local_mouse_position(app, &model.wtrans) - start_pos;

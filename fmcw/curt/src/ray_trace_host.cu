@@ -88,14 +88,13 @@ void PathTracer::first_intersection(float origin_x, float origin_y, float dir_a,
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 }
 
-void PathTracer::sample_outgoing_rays(bool is_first) {
+void PathTracer::sample_outgoing_rays() {
     static size_t random_offset = 0;
-    printf("Scattering-interaction: %d\n", int(is_first));
     // within this function, there is nothing to be fetched multiple times, therefore shared memory is not needed.
     // update the ray direction, in order to get next intersection
     general_interact_kernel<<< 8, max(ray_num >> 3, 1lu) >>>(cu_mesh_inds, cu_ray_info, cu_ray_d, random_offset);
     // update the intersections (ray origin updates from original starting point to intersection points) 
     CUDA_CHECK_RETURN(cudaMemcpy(cu_ray_os, cu_intersects, ray_num * sizeof(Vec2), cudaMemcpyDeviceToDevice));  // assume this copy operation won't emit exception
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-    // random_offset += 1;
+    random_offset += 1;
 }

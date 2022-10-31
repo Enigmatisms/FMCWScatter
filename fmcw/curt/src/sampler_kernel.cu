@@ -91,7 +91,6 @@ __device__ bool frensel_eff_sampler_kernel(const ObjInfo& object, RayInfo& rayi,
 
     const bool is_reflection = curand_uniform(&rand_state) <= reflection_ratio;   // random choise of refracted or reflected
     ray_d = is_reflection ? reflected_dir : refracted_dir;          // warp divergence might be more efficient in this case
-    printf("Same dir: %d, is reflection: %d, result valid: %d, reflection_ratio: %f, ref gain: %f, %f, %f\n", int(same_dir), int(is_reflection), int(result_valid), reflection_ratio, r_gain, fabs(cos_inc), fabs(cosf(angle)));
     return (same_dir == is_reflection);         // XOR: when same_dir(1), is_ref(1) (penetrate out from medium but reflected -> is in media)
 }
 
@@ -99,30 +98,34 @@ __device__ bool frensel_eff_sampler_kernel(const ObjInfo& object, RayInfo& rayi,
 /// The information need is not stored in objects (it should not be), but in __constant__ world
 __global__ void general_interact_kernel(const short* const mesh_inds, RayInfo* const ray_info, Vec2* ray_d, size_t rand_offset) {
     const int ray_id = blockDim.x * blockIdx.x + threadIdx.x;
-    const short mesh_ind = mesh_inds[ray_id];
-    const short obj_ind = obj_inds[mesh_ind];
-    // There is bound to be warp divergence (inevitable, or rather say, preferred)
-    const ObjInfo& object = objects[obj_ind];
-    const Vec2& normal = all_normal[mesh_ind];
     RayInfo& this_ray = ray_info[ray_id];
-    switch (object.type) {
-          case Material::DIFFUSE: {
-            diffusive_ref_sampler_kernel(object, normal, this_ray, ray_d, rand_offset, ray_id); break;
-        } case Material::GLOSSY: {
-            glossy_ref_sampler_kernel(object, normal, this_ray, ray_d, rand_offset, ray_id, obj_ind); break;
-        } case Material::SPECULAR: {
-            specular_ref_sampler_kernel(object, normal, this_ray, ray_d, ray_id); break;
-        } case Material::REFRACTIVE: {
-            // TODO: more things should be accounted for: world refraction index, transimitting from media 1 to media 2
-            frensel_eff_sampler_kernel(object, this_ray, ray_d[ray_id], rand_offset, ray_id, mesh_ind); break;
-        } case Material::SCAT_ISO: {
-            scattering_interaction(object, this_ray, ray_d[ray_id], isotropic_phase, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
-        } case Material::SCAT_HG: {
-            scattering_interaction(object, this_ray, ray_d[ray_id], henyey_greenstein_phase, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
-        } case Material::SCAT_RAYLEIGH: {
-            scattering_interaction(object, this_ray, ray_d[ray_id], rayleigh_phase, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
-        } default: {
-            break;
+    if (this_ray.terminated == false) {
+        const short mesh_ind = mesh_inds[ray_id];
+        const short obj_ind = obj_inds[mesh_ind];
+        // There is bound to be warp divergence (inevitable, or rather say, preferred)
+        const ObjInfo& object = objects[obj_ind];
+        const Vec2& normal = all_normal[mesh_ind];
+        switch (object.type) {
+            case Material::DIFFUSE: {
+                diffusive_ref_sampler_kernel(object, normal, this_ray, ray_d, rand_offset, ray_id); break;
+            } case Material::GLOSSY: {
+                glossy_ref_sampler_kernel(object, normal, this_ray, ray_d, rand_offset, ray_id, obj_ind); break;
+            } case Material::SPECULAR: {
+                specular_ref_sampler_kernel(object, normal, this_ray, ray_d, ray_id); break;
+            } case Material::REFRACTIVE: {
+                // TODO: more things should be accounted for: world refraction index, transimitting from media 1 to media 2
+                frensel_eff_sampler_kernel(object, this_ray, ray_d[ray_id], rand_offset, ray_id, mesh_ind); break;
+            } case Material::SCAT_ISO: {
+                scattering_interaction(object, this_ray, ray_d[ray_id], isotropic_phase, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
+            } case Material::SCAT_HG: {
+                scattering_interaction(object, this_ray, ray_d[ray_id], henyey_greenstein_phase, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
+            } case Material::SCAT_RAYLEIGH: {
+                scattering_interaction(object, this_ray, ray_d[ray_id], rayleigh_phase, ray_info[ray_id].is_in_media, ray_id, mesh_ind, rand_offset); break;
+            } case Material::TOTAL_ABSORP: {
+                this_ray.terminated = true; break;
+            } default: {
+                break;
+            }
         }
     }
     // Massive warp divergence and serialization

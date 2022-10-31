@@ -28,7 +28,7 @@ __device__ void rayleigh_phase(const ObjInfo& obj, Vec2& output, int ray_id, siz
     const float next_rd = 2.f * curand_uniform(&rand_state) - 1.f;
     const float u = -cbrtf(2.f * next_rd + sqrtf(4.f * next_rd * next_rd + 1.0f));
     const float cos_t = fmax(-1.f, fmin(1.f, u - 1.f / u));
-    const float sin_t = sgn(next_rd) * sqrtf(fmax(0.f, 1.f - cos_t * cos_t));
+    const float sin_t = sgn(curand_uniform(&rand_state)) * sqrtf(fmax(0.f, 1.f - cos_t * cos_t));
     const float out_x = output.y * cos_t + output.x * sin_t;
     const float out_y = -output.x * cos_t + output.y * sin_t;
     output.x = out_x;
@@ -60,10 +60,7 @@ __device__ void scattering_interaction(
     if (local_medium_judge == false) {
         path1 = true;
         local_medium_judge = frensel_eff_sampler_kernel(obj, rayi, local_dir, rand_offset, ray_id, mesh_id);
-    } else {
-        printf("Born in media\n");
     }
-    printf("Ray (%d) Hits: %d (%d), local: %f, %f, ray: %f, %f\n", ray_id, mesh_id, int(path1), local_dir.x, local_dir.y, ray_dir.x, ray_dir.y, local_dir.y);
     if (local_medium_judge) {
         pfunc(obj, local_dir, ray_id, rand_offset);
         // TODO： if scattering caused the photon to scatter out from the medium, what logic should it be? (this is a make-shift logic)

@@ -111,12 +111,13 @@ __global__ void ray_trace_cuda_kernel(
     const Vec2& ray_o = origins[ray_id];
     const Vec2& ray_d = ray_dir[ray_id];
     const float dx = ray_d.x, dy = ray_d.y;
+    const bool not_terminated = (ray_info[ray_id].terminated == false);
     if (mesh_id < aabb_num) {       // first (aabb_num) threads should process AABB calculation, others remains idle
         // Bank conflict unresolvable (haven't found a very effective way)
         hit_flags[mesh_id] = 1;
     }
     __syncthreads();
-    if (mesh_id < mesh_num) {       // for the sake of mesh (line segment division), there might be more threads than needed
+    if (mesh_id < mesh_num && not_terminated) {       // for the sake of mesh (line segment division), there might be more threads than needed
         short aabb_index = obj_inds[mesh_id];
         shared_banks[mesh_id] = -0.1f;
         // what is the meanning of (mesh_id != inds[ray_id]): we can not intersect the last hit line segment
@@ -133,12 +134,12 @@ __global__ void ray_trace_cuda_kernel(
     __syncthreads();
     float* local_min_depths = &shared_banks[mesh_num];
     short* local_obj_inds = (short*) &shared_banks[mesh_num + 8];
-    if (threadIdx.x == 0) {             // 8-thread parallel
+    if (threadIdx.x == 0 && not_terminated) {             // 8-thread parallel
         int max_bound = min(mesh_num, blockDim.x * (threadIdx.y + 1));
         range_min(shared_banks, blockDim.x * threadIdx.y, max_bound, local_min_depths[threadIdx.y], local_obj_inds[threadIdx.y]);
     }
     __syncthreads();
-    if (mesh_id == 0) {             // only one thread attend to the final output
+    if (mesh_id == 0 && not_terminated) {             // only one thread attend to the final output
         RayInfo& ray = ray_info[ray_id];
         float range_bound = 0.;
         range_min(local_min_depths, 0, blockDim.y, range_bound, inds[ray_id], local_obj_inds);
@@ -164,7 +165,7 @@ __global__ void mfp_sample_kernel(const Vec2* const ray_d, const short* const in
     // Segmented to 8 blocks for maximum GPU occupancy
     const int ray_id = threadIdx.x + blockIdx.x * blockDim.x;
     RayInfo& ray = ray_info[ray_id];
-    if (ray.is_in_media == true) {             // only rays inside medium will be processed
+    if (ray.terminated == false && ray.is_in_media == true) {                   // only rays inside medium will be processed
         curandState rand_state;
         curand_init(ray_id, 0, random_offset + ray_id, &rand_state);
         // Sample by mean free path
@@ -176,7 +177,6 @@ __global__ void mfp_sample_kernel(const Vec2* const ray_d, const short* const in
         bool inside_media = sampled_mfp < ray.range_bound;
         ray.is_in_media = inside_media;
         ray.on_edge = !inside_media;                                            // on edge will only be modified in mfp_sample_kernel
-        printf("Ray (%d), Mean free path: %f, bound: %f\n", ray_id, sampled_mfp, ray.range_bound);
         if (inside_media) {        // scattering event (mean free path < hit depth)
             float old_depth = ray.range_bound;
             ray.acc_range -= old_depth;

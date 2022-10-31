@@ -6,13 +6,13 @@
             "ref_index": 2.5,
             "rdist": 0.0,
             "r_gain": 1.0,
-            "u_a": 0.2,
-            "u_s": 0.2,
+            "u_a": 0.3,
+            "u_s": 0.3,
             "p_c": 0.9
         },
 
         {
-            "_type": 2,
+            "_type": 255,
             "ref_index": 2.0,
             "rdist": 0.0,
             "r_gain": 1.0,
